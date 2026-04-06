@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3D6472E32F576872007AEFB0 /* spec.txt in Sources */ = {isa = PBXBuildFile; fileRef = 3D6472E22F57685E007AEFB0 /* spec.txt */; };
+		3D8526D32F5801BB00EA5DBE /* license.txt in Resources */ = {isa = PBXBuildFile; fileRef = 3D8526D22F5801AF00EA5DBE /* license.txt */; };
+		3DAB654E2E85C17B00D92E08 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAB654D2E85C17B00D92E08 /* ContentView.swift */; };
+		3DAB660A2E89035200D92E08 /* ColorOrBW.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAB66092E89035200D92E08 /* ColorOrBW.swift */; };
+		3DAB660C2E89038000D92E08 /* ConversionLogicColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAB660B2E89038000D92E08 /* ConversionLogicColor.swift */; };
+		3DAB660E2E8903B200D92E08 /* ConversionLogicBW.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAB660D2E8903B200D92E08 /* ConversionLogicBW.swift */; };
+		3DAB66122E890A8900D92E08 /* OrangeChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAB66112E890A8900D92E08 /* OrangeChallenge.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		3DC424E02E852DCF00BC4282 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +34,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3D6472E22F57685E007AEFB0 /* spec.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = spec.txt; sourceTree = "<group>"; };
+		3D8526D22F5801AF00EA5DBE /* license.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = license.txt; sourceTree = "<group>"; };
+		3DAB654D2E85C17B00D92E08 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		3DAB66092E89035200D92E08 /* ColorOrBW.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorOrBW.swift; sourceTree = "<group>"; };
+		3DAB660B2E89038000D92E08 /* ConversionLogicColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionLogicColor.swift; sourceTree = "<group>"; };
+		3DAB660D2E8903B200D92E08 /* ConversionLogicBW.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionLogicBW.swift; sourceTree = "<group>"; };
+		3DAB66112E890A8900D92E08 /* OrangeChallenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrangeChallenge.swift; sourceTree = "<group>"; };
 		3DC424D12E852DCC00BC4282 /* Negative Conversion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Negative Conversion.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DC424DF2E852DCF00BC4282 /* Negative ConversionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Negative ConversionTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DC424E92E852DCF00BC4282 /* Negative ConversionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Negative ConversionUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +92,13 @@
 		3DC424C82E852DCC00BC4282 = {
 			isa = PBXGroup;
 			children = (
+				3D6472E22F57685E007AEFB0 /* spec.txt */,
+				3D8526D22F5801AF00EA5DBE /* license.txt */,
+				3DAB654D2E85C17B00D92E08 /* ContentView.swift */,
+				3DAB66092E89035200D92E08 /* ColorOrBW.swift */,
+				3DAB660B2E89038000D92E08 /* ConversionLogicColor.swift */,
+				3DAB660D2E8903B200D92E08 /* ConversionLogicBW.swift */,
+				3DAB66112E890A8900D92E08 /* OrangeChallenge.swift */,
 				3DC424D32E852DCC00BC4282 /* Negative Conversion */,
 				3DC424E22E852DCF00BC4282 /* Negative ConversionTests */,
 				3DC424EC2E852DCF00BC4282 /* Negative ConversionUITests */,
@@ -175,6 +199,7 @@
 				TargetAttributes = {
 					3DC424D02E852DCC00BC4282 = {
 						CreatedOnToolsVersion = 16.4;
+						LastSwiftMigration = 1640;
 					};
 					3DC424DE2E852DCF00BC4282 = {
 						CreatedOnToolsVersion = 16.4;
@@ -212,6 +237,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3D8526D32F5801BB00EA5DBE /* license.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +262,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DAB660C2E89038000D92E08 /* ConversionLogicColor.swift in Sources */,
+				3D6472E32F576872007AEFB0 /* spec.txt in Sources */,
+				3DAB660A2E89035200D92E08 /* ColorOrBW.swift in Sources */,
+				3DAB66122E890A8900D92E08 /* OrangeChallenge.swift in Sources */,
+				3DAB660E2E8903B200D92E08 /* ConversionLogicBW.swift in Sources */,
+				3DAB654E2E85C17B00D92E08 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,24 +426,32 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Negative Conversion/Negative_Conversion.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.4;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Negative Conversion";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "art.slowlight.Negative-Conversion";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -421,22 +461,40 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Negative Conversion/Negative_Conversion.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.4;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
+				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Negative Conversion";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "art.slowlight.Negative-Conversion";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -447,6 +505,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
@@ -465,6 +524,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
@@ -482,6 +542,7 @@
 		3DC424FA2E852DCF00BC4282 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
@@ -498,6 +559,7 @@
 		3DC424FB2E852DCF00BC4282 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
