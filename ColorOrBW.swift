@@ -56,36 +56,35 @@ class ImageTypeAnalyzer {
         var sampledPixels = 0
         
         // Sample every 10th pixel for efficiency
+        var totalDifference: Int = 0
         for y in stride(from: 0, to: height, by: 10) {
             for x in stride(from: 0, to: width, by: 10) {
                 let pixelIndex = (y * width + x) * 4
                 guard pixelIndex + 2 < cgImage.bytesPerRow * height else { continue }
-                
-                let red = data[pixelIndex]
+
+                let red   = data[pixelIndex]
                 let green = data[pixelIndex + 1]
-                let blue = data[pixelIndex + 2]
-                
-                // Check if this pixel has significant color information
-                // A pixel is considered "color" if there's significant difference between R, G, B channels
+                let blue  = data[pixelIndex + 2]
+
                 let maxChannel = max(red, green, blue)
                 let minChannel = min(red, green, blue)
                 let colorDifference = Int(maxChannel) - Int(minChannel)
-                
-                // Threshold for detecting color (adjust as needed)
+
+                totalDifference += colorDifference
+
                 let colorThreshold = 15 // out of 255
-                
                 if colorDifference > colorThreshold {
                     colorPixelCount += 1
                 }
-                
                 sampledPixels += 1
             }
         }
-        
+
         // Calculate percentage of pixels that appear to have color
         let colorPercentage = Double(colorPixelCount) / Double(sampledPixels)
-        
-        print("📊 Color analysis: \(String(format: "%.1f", colorPercentage * 100))% of pixels show color information")
+        let meanDifference   = sampledPixels > 0 ? Double(totalDifference) / Double(sampledPixels) : 0.0
+
+        print("📊 Color analysis: \(String(format: "%.1f", colorPercentage * 100))% color pixels, mean channel diff=\(String(format: "%.1f", meanDifference))/255 (threshold=15)")
         
         // Threshold for determining if image is B&W vs Color
         // If less than 5% of pixels show significant color, treat as B&W

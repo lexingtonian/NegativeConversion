@@ -91,7 +91,7 @@ class ImageProcessorBW {
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_p", outputFormat: outputFormat)
-        try saveImageBW(finalImage, to: outputURL, outputFormat: outputFormat)
+        try saveImageBW(finalImage, to: outputURL, sourceURL: sourceURL, outputFormat: outputFormat)
         print("✓ BW Saved: \(outputURL.lastPathComponent)")
     }
 
@@ -128,7 +128,7 @@ class ImageProcessorBW {
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_e", outputFormat: outputFormat)
-        try saveImageBW(finalImage, to: outputURL, outputFormat: outputFormat)
+        try saveImageBW(finalImage, to: outputURL, sourceURL: sourceURL, outputFormat: outputFormat)
         print("✓ BW Enhance Saved: \(outputURL.lastPathComponent)")
     }
 
@@ -409,25 +409,37 @@ class ImageProcessorBW {
 
     // MARK: - Save as True Grayscale JPEG or TIFF
 
-    private func saveImageBW(_ image: CIImage, to url: URL, outputFormat: OutputFormat) throws {
+    private func saveImageBW(_ image: CIImage, to url: URL, sourceURL: URL, outputFormat: OutputFormat) throws {
         let w = Int(image.extent.width)
         let h = Int(image.extent.height)
 
-        guard let rgbCGImage = context.createCGImage(
-            image,
-            from: image.extent,
-            format: .RGBA8,
-            colorSpace: CGColorSpaceCreateDeviceRGB()
-        ) else { throw ProcessingErrorBW.failedToCreateCGImage }
+        // Read source DPI and bit depth
+        var dpiW: Double = 72; var dpiH: Double = 72; var bitDepth: Int = 8
+        if let src = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+           let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
+            dpiW     = (props[kCGImagePropertyDPIWidth]  as? Double) ?? 72.0
+            dpiH     = (props[kCGImagePropertyDPIHeight] as? Double) ?? 72.0
+            bitDepth = (props[kCGImagePropertyDepth]     as? Int)    ?? 8
+        }
+        print("📐 BW Source metadata: \(Int(dpiW))×\(Int(dpiH)) DPI, \(bitDepth)-bit")
 
-        guard let grayCtx = CGContext(
-            data: nil,
-            width: w, height: h,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceGray(),
-            bitmapInfo: CGImageAlphaInfo.none.rawValue
-        ) else { throw ProcessingErrorBW.failedToCreateCGImage }
+        // Use 16-bit context for TIFF when source is 16-bit
+        let use16 = outputFormat == .tiff && bitDepth >= 16
+        let bpc   = use16 ? 16 : 8
+        let fmt: CIFormat = use16 ? .RGBAh : .RGBA8
+
+        guard let rgbCGImage = context.createCGImage(image, from: image.extent, format: fmt,
+                                                      colorSpace: CGColorSpaceCreateDeviceRGB())
+        else { throw ProcessingErrorBW.failedToCreateCGImage }
+
+        let grayBmi: UInt32 = use16
+            ? CGImageAlphaInfo.none.rawValue | CGBitmapInfo.byteOrder16Big.rawValue
+            : CGImageAlphaInfo.none.rawValue
+
+        guard let grayCtx = CGContext(data: nil, width: w, height: h, bitsPerComponent: bpc,
+                                      bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(),
+                                      bitmapInfo: grayBmi)
+        else { throw ProcessingErrorBW.failedToCreateCGImage }
 
         grayCtx.draw(rgbCGImage, in: CGRect(x: 0, y: 0, width: w, height: h))
 
@@ -439,22 +451,35 @@ class ImageProcessorBW {
             ? UTType.tiff.identifier as CFString
             : UTType.jpeg.identifier as CFString
 
-        guard let destination = CGImageDestinationCreateWithURL(
-            url as CFURL, utType, 1, nil
-        ) else { throw ProcessingErrorBW.failedToCreateDestination }
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, utType, 1, nil)
+        else { throw ProcessingErrorBW.failedToCreateDestination }
 
-        let options: [CFString: Any] = outputFormat == .tiff
-            ? [:]
-            : [kCGImageDestinationLossyCompressionQuality: 0.95]
-
-        CGImageDestinationAddImage(destination, grayCGImage, options as CFDictionary)
+        if outputFormat == .tiff {
+            let destProps: [CFString: Any] = [kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFXResolution:    NSNumber(value: dpiW),
+                kCGImagePropertyTIFFYResolution:    NSNumber(value: dpiH),
+                kCGImagePropertyTIFFResolutionUnit: NSNumber(value: 2)
+            ] as [CFString: Any]]
+            CGImageDestinationSetProperties(destination, destProps as CFDictionary)
+            CGImageDestinationAddImage(destination, grayCGImage, nil)
+        } else {
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 0.95,
+                kCGImagePropertyJFIFDictionary: [
+                    kCGImagePropertyJFIFXDensity:    NSNumber(value: dpiW),
+                    kCGImagePropertyJFIFYDensity:    NSNumber(value: dpiH),
+                    kCGImagePropertyJFIFDensityUnit: NSNumber(value: 1)
+                ] as [CFString: Any]
+            ]
+            CGImageDestinationAddImage(destination, grayCGImage, options as CFDictionary)
+        }
 
         guard CGImageDestinationFinalize(destination) else {
             throw ProcessingErrorBW.failedToSaveImage
         }
 
         let formatName = outputFormat == .tiff ? "TIFF" : "JPEG"
-        print("✓ BW: Saved as grayscale \(formatName) (\(w)x\(h))")
+        print("\u{2713} BW: Saved as grayscale \(formatName) (\(w)x\(h), \(bpc)-bit, \(Int(dpiW))dpi)")
     }
 
     // MARK: - Output URL
