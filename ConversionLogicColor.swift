@@ -226,14 +226,7 @@ class ImageProcessorColor {
               CGImageSourceGetCount(source) > 0 else {
             throw ProcessingErrorColor.failedToLoadRAWImage
         }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 4000
-        ]
-        if let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
-            return CIImage(cgImage: cg)
-        }
+        // Load full-resolution RAW — no thumbnail, no size cap
         guard let cg = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw ProcessingErrorColor.failedToLoadRAWImage
         }

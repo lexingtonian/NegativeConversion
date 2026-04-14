@@ -150,14 +150,7 @@ class ImageProcessorBW {
               CGImageSourceGetCount(imageSource) > 0 else {
             throw ProcessingErrorBW.failedToLoadRAWImage
         }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 4000
-        ]
-        if let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) {
-            return CIImage(cgImage: cgImage)
-        }
+        // Load full-resolution RAW — no thumbnail, no size cap
         guard let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
             throw ProcessingErrorBW.failedToLoadRAWImage
         }
