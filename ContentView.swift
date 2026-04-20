@@ -85,7 +85,7 @@ struct HelpView: View {
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     helpBullet(label: "Automatic", body: "The app analyses each image and applies a standard conversion with no adjustments.")
-                    helpBullet(label: "Balanced", body: "Applies automatic brightness and contrast balancing. Nudges dark or bright images toward middle grey, and boosts contrast on flat images. Never clips highlights or shadows.")
+                    helpBullet(label: "Manual", body: "Use sliders to adjust brightness, contrast, and saturation of the output. All adjustments preserve full tonal range — no pixel data is lost.")
                     helpBullet(label: "Use Reference Image", body: "Drag in or select a positive photo that represents the look you want. The app matches contrast and color balance toward that reference while always outputting a full-range image. Dropping a reference image automatically switches to this mode.")
                 }
                 .padding(.leading, 16)
@@ -144,7 +144,7 @@ struct HelpView: View {
 enum PickerMode   { case negatives, reference, outputFolder }
 enum OutputFormat { case jpeg, tiff }
 enum AppMode      { case convertNegatives, enhancePositives }
-enum ProcessMode  { case automatic, balanced, useReference }
+enum ProcessMode  { case automatic, manual, useReference }
 
 // MARK: - Panel label style
 
@@ -170,9 +170,11 @@ struct ContentView: View {
 
     // Process
     @State private var processMode: ProcessMode = .automatic
-    // Checkbox state vars removed — Balanced always applies both corrections
-    // @State private var normalizeMidtones = false
-    // @State private var balanceContrast   = false
+
+    // Manual mode slider values — persisted via AppStorage (-1.0 to +1.0, 0.0 = no effect)
+    @AppStorage("manualBrightness")  private var manualBrightness:  Double = 0.0
+    @AppStorage("manualContrast")    private var manualContrast:    Double = 0.0
+    @AppStorage("manualSaturation")  private var manualSaturation:  Double = 0.0
     @State private var referenceURL: URL?
     @State private var referenceImage: NSImage?
 
@@ -195,9 +197,8 @@ struct ContentView: View {
     @State private var showingAlert  = false
 
     // Derived
-    private var useReference: Bool            { processMode == .useReference }
-    private var normalizeMidtonesActive: Bool { processMode == .balanced }
-    private var balanceContrastActive: Bool   { processMode == .balanced }
+    private var useReference: Bool  { processMode == .useReference }
+    private var manualIsActive: Bool { processMode == .manual }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -349,8 +350,27 @@ struct ContentView: View {
                 radioButton("Automatic", selected: processMode == .automatic) {
                     processMode = .automatic
                 }
-                radioButton("Balanced", selected: processMode == .balanced) {
-                    processMode = .balanced
+                radioButton("Manual", selected: processMode == .manual) {
+                    processMode = .manual
+                }
+                if processMode == .manual {
+                    VStack(alignment: .leading, spacing: 10) {
+                        manualSlider("Darker", "Brighter",       value: $manualBrightness)
+                        manualSlider("Less Contrast", "More Contrast", value: $manualContrast)
+                        manualSlider("Less Saturation", "More Saturation", value: $manualSaturation)
+                    }
+                    .padding(.leading, 22)
+                    .padding(.top, 4)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        manualSlider("Darker", "Brighter",       value: .constant(manualBrightness))
+                        manualSlider("Less Contrast", "More Contrast", value: .constant(manualContrast))
+                        manualSlider("Less Saturation", "More Saturation", value: .constant(manualSaturation))
+                    }
+                    .padding(.leading, 22)
+                    .padding(.top, 4)
+                    .disabled(true)
+                    .opacity(0.35)
                 }
 
                 radioButton("Use Reference Image", selected: processMode == .useReference) {
@@ -621,6 +641,20 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Manual slider helper
+
+    private func manualSlider(_ leftLabel: String, _ rightLabel: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Slider(value: value, in: -1.0...1.0, step: 0.2)
+                .frame(maxWidth: .infinity)
+            HStack {
+                Text(leftLabel).font(.system(size: 9)).foregroundColor(.secondary)
+                Spacer()
+                Text(rightLabel).font(.system(size: 9)).foregroundColor(.secondary)
+            }
+        }
+    }
+
     // MARK: - Output folder bookmark persistence
 
     private static let bookmarkKey = "outputDirectoryBookmark"
@@ -710,9 +744,10 @@ struct ContentView: View {
                             sourceURL: imageURL, outputDirectory: outputDir,
                             referenceURL: activeReference,
                             outputFormat: outputFormat,
-                            normalizeMidtones: normalizeMidtonesActive,
-                            transferLuminance: referenceIsBW,
-                            balanceContrast: balanceContrastActive)
+                            brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                            contrastAdjust: manualIsActive ? manualContrast : 0.0,
+                            saturationAdjust: manualIsActive ? manualSaturation : 0.0,
+                            transferLuminance: referenceIsBW)
 
                     case .blackAndWhite:
                         if let ref = activeReference {
@@ -721,17 +756,19 @@ struct ContentView: View {
                                 sourceURL: imageURL, outputDirectory: outputDir,
                                 referenceURL: ref,
                                 outputFormat: outputFormat,
-                                normalizeMidtones: normalizeMidtonesActive,
+                                brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                                contrastAdjust: 0.0,
+                                saturationAdjust: 0.0,
                                 transferLuminance: referenceIsBW,
-                                balanceContrast: false,
                                 sourceIsGrayscale: !referenceIsBW)
                         } else {
                             print("🔀 ROUTING: \(imageURL.lastPathComponent) -> BW processor")
                             try await bwProcessor.convertImageBW(
                                 sourceURL: imageURL, outputDirectory: outputDir,
                                 outputFormat: outputFormat,
-                                normalizeMidtones: normalizeMidtonesActive,
-                                balanceContrast: balanceContrastActive)
+                                brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                                contrastAdjust: manualIsActive ? manualContrast : 0.0,
+                            saturationAdjust: manualIsActive ? manualSaturation : 0.0)
                         }
                     }
 
@@ -744,9 +781,10 @@ struct ContentView: View {
                             sourceURL: imageURL, outputDirectory: outputDir,
                             referenceURL: activeReference,
                             outputFormat: outputFormat,
-                            normalizeMidtones: normalizeMidtonesActive,
-                            transferLuminance: referenceIsBW,
-                            balanceContrast: balanceContrastActive)
+                            brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                            contrastAdjust: manualIsActive ? manualContrast : 0.0,
+                            saturationAdjust: manualIsActive ? manualSaturation : 0.0,
+                            transferLuminance: referenceIsBW)
 
                     case .blackAndWhite:
                         if let ref = activeReference {
@@ -755,17 +793,19 @@ struct ContentView: View {
                                 sourceURL: imageURL, outputDirectory: outputDir,
                                 referenceURL: ref,
                                 outputFormat: outputFormat,
-                                normalizeMidtones: normalizeMidtonesActive,
+                                brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                                contrastAdjust: 0.0,
+                                saturationAdjust: 0.0,
                                 transferLuminance: referenceIsBW,
-                                balanceContrast: false,
                                 sourceIsGrayscale: !referenceIsBW)
                         } else {
                             print("🔀 ENHANCE: \(imageURL.lastPathComponent) -> BW enhance")
                             try await bwProcessor.enhancePositiveBW(
                                 sourceURL: imageURL, outputDirectory: outputDir,
                                 outputFormat: outputFormat,
-                                normalizeMidtones: normalizeMidtonesActive,
-                                balanceContrast: balanceContrastActive)
+                                brightnessAdjust: manualIsActive ? manualBrightness : 0.0,
+                                contrastAdjust: manualIsActive ? manualContrast : 0.0,
+                            saturationAdjust: manualIsActive ? manualSaturation : 0.0)
                         }
                     }
                 }

@@ -1,4 +1,3 @@
-
 # Negative to Positive Converter — Architecture & Design Reference
 
 
@@ -30,7 +29,7 @@ A macOS App Store app that converts scanned film negatives (color and black & wh
 
 **Process Mode** (affects both app modes):
 - **Automatic** — straight conversion, no post-processing
-- **Balanced** — applies brightness and contrast correction after conversion
+- **Manual** — user-controlled brightness, contrast, and saturation sliders applied after conversion
 - **Use Reference Image** — matches tonal and color characteristics to a reference positive
 
 ---
@@ -63,20 +62,20 @@ The same matrix applies for Enhance mode, substituting `enhancePositiveColor` an
 ## Color Pipeline (`ConversionLogicColor.swift`)
 
 ### Convert Negatives path:
-1. **Load** — JPEG/PNG/TIFF via `CIImage(contentsOf:)`, RAW via `CGImageSourceCreateThumbnailAtIndex` at max 4000px
+1. **Load** — JPEG/PNG/TIFF via `CIImage(contentsOf:)`, RAW via `CGImageSourceCreateImageAtIndex` at full native resolution (no size cap)
 2. **Orange detection** — sample brightest 5% of pixels (by luminance) from inner 80% of image, average their RGB → this is the film base color
 3. **Orange removal** — per-channel gain: `gain = 1/orange_channel`, normalised so the largest gain = 1.0, applied as a multiply kernel
 4. **Tonal stretch** — per-channel, 0.5th–99.5th percentile endpoints mapped to [0,1]. Rejects dust/scratch outliers
 5. **Invert** — `1.0 - value` per channel
 6. **Reference matching** (optional, see below)
-7. **Balanced corrections** (optional, see below)
+7. **Manual adjustments** (optional — brightness, contrast, saturation sliders)
 8. **Save**
 
 ### Enhance Positives path:
 1. **Load**
 2. **Tonal stretch** (same percentile approach)
 3. **Reference matching** (optional)
-4. **Balanced corrections** (optional)
+4. **Manual adjustments** (optional)
 5. **Save**
 
 ---
@@ -89,14 +88,14 @@ The same matrix applies for Enhance mode, substituting `enhancePositiveColor` an
 3. **Endpoint sampling** — 0.5th and 99.5th percentile of inner 80%
 4. **Stretch** — linear map from [darkPoint, brightPoint] to [0,1]
 5. **Invert**
-6. **Balanced corrections** (optional)
+6. **Manual adjustments** (optional — brightness and contrast only)
 7. **Save as true grayscale JPEG** — written via a grayscale CGContext, not RGB
 
 ### Enhance Positives path:
 1. **Load**
 2. **Grayscale conversion**
 3. **Endpoint sampling + stretch**
-4. **Balanced corrections** (optional)
+4. **Manual adjustments** (optional)
 5. **Save**
 
 ---
@@ -126,43 +125,39 @@ Used when a greyscale source gets a color reference to introduce toning (e.g. bl
 
 ---
 
-## Balanced Mode (`normalizeMidtonesColor`, `balanceContrastColor`, and BW equivalents)
+## Manual Mode (`applyManualAdjustments`, `applyManualAdjustmentsBW`)
 
-Applied after conversion/reference matching when Process Mode = Balanced. Both brightness and contrast corrections always run (they were previously separate checkboxes, removed for simplicity — code separation preserved).
+Applied as the final step before saving when Process Mode = Manual. Three sliders in the UI each map to a parameter passed to the processor. All three are no-ops at 0.0 (center position). Sliders have 10 steps (-1.0 to +1.0) and are stored permanently via `@AppStorage`. When Automatic or Use Reference Image is selected, sliders are visible but greyed out and have no effect.
 
-### Brightness correction
-- Measures mean Lab L* of the image (color) or median luminance (B&W)
-- Computes distance from target (currently L*=78 for color, 0.78 for B&W — intentionally above middle grey)
-- Applies only a fraction of that distance: `maxBrightnessCorrection` (currently 0.65)
-- Dark images get brighter, bright images get slightly darker — bidirectional
-- Implemented as gamma on L channel only in Lab space → color balance unaffected
-- Naturally self-limiting: highlights near 100 L* barely move
+### Brightness slider (Darker ←→ Brighter)
+- Maps -1.0→+1.0 to gamma 3.0→0.33 (center 1.0 = no effect)
+- Applied to Lab L channel only — color balance unaffected
+- Gamma < 1 brightens midtones; gamma > 1 darkens them
+- Fixed points at L=0 and L=100 — pure black and pure white never move
 
-### Contrast correction
-- Measures L* std deviation
-- **Boost only — never reduces contrast**
-- Skipped if std is within `contrastDeadzone` (85%) of `targetLStd`
-- S-curve sigmoid on L channel only in Lab space → color balance unaffected
-- Steepness k proportional to how flat the image is, capped at `maxContrastK`
+### Contrast slider (Less Contrast ←→ More Contrast)
+- Maps -1.0→+1.0 to sigmoid steepness k = -6.0→+6.0 (center 0 = linear = no effect)
+- Applied to Lab L channel only — color balance unaffected
+- Positive k: S-curve expands midtone separation (more contrast)
+- Negative k: S-curve compresses midtones toward grey (less contrast)
+- No clipping — curve is monotonic with soft approach to 0 and 1
 
-### Tuning constants (top of each logic file, easy to find):
+### Saturation slider (Less Saturation ←→ More Saturation)
+- Maps -1.0→+1.0 to a+b channel scale factor 0.0→2.0 (center 1.0 = no effect)
+- Scales Lab a and b channels — luminance unaffected
+- 0.0 = fully desaturated, 1.0 = original, 2.0 = doubled chroma
+- Ignored for B&W images (no chroma to scale)
+- No clipping — scaling relative values cannot exceed gamut boundaries
 
-**`ConversionLogicColor.swift`:**
+### Function signatures:
 ```swift
-private let targetLMean:             Double = 78.0   // brightness target (Lab L*)
-private let maxBrightnessCorrection: Double = 0.65   // correction strength 0.0–1.0
-private let targetLStd:              Double = 22.0   // contrast target (L* std dev)
-private let maxContrastK:            Float  = 6.0    // sigmoid steepness cap
-private let contrastDeadzone:        Double = 0.85   // dead zone fraction
-```
+// Color processor
+func applyManualAdjustments(_ image: CIImage,
+    brightness: Double, contrast: Double, saturation: Double) throws -> CIImage
 
-**`ConversionLogicBW.swift`:**
-```swift
-private let bwTargetMedian:            Double = 0.78  // brightness target (0–1)
-private let bwMaxBrightnessCorrection: Double = 0.65  // correction strength
-private let bwTargetStd:               Double = 0.22  // contrast target
-private let bwMaxContrastK:            Float  = 6.0   // sigmoid steepness cap
-private let bwContrastDeadzone:        Double = 0.85  // dead zone fraction
+// BW processor (saturation param not used)
+func applyManualAdjustmentsBW(_ image: CIImage,
+    brightness: Double, contrast: Double) throws -> CIImage
 ```
 
 ---
@@ -191,7 +186,7 @@ Three-panel horizontal layout with an action bar below:
 
 **Input panel** — mode selection (Convert/Enhance), drag-and-drop zone, file list, Add/Clear buttons
 
-**Process panel** — Automatic / Balanced / Use Reference Image radio buttons, reference image drop zone and picker
+**Process panel** — Automatic / Manual / Use Reference Image radio buttons with three sliders (brightness, contrast, saturation) under Manual, reference image drop zone and picker
 
 **Output panel** — preview of last converted image, JPEG/TIFF format selector, output folder path and Select button
 
@@ -209,7 +204,7 @@ Single `.fileImporter` handles all three picker cases (negatives, reference, out
 | Per-channel tonal stretch before invert | Normalises each channel independently, removing color cast from uneven exposure |
 | Orange removal by sampling brightest 5% | Film base is always the brightest area of a negative; this finds it robustly without assumptions about film stock |
 | Percentile endpoints (0.5/99.5) not min/max | Dust, scratches, and light leaks would otherwise clip the entire tonal range |
-| Contrast boost only, never reduce | Compression discards image information; expansion reveals what's already there |
+| Manual contrast bidirectional (S-curve) | Positive k expands midtones; negative k compresses them — monotonic curve prevents clipping in both directions |
 | Security-scoped bookmarks for output folder | The only App Store-compliant way to write to arbitrary user-chosen directories persistently |
 | Single fileImporter for all pickers | SwiftUI only supports one .fileImporter per view; multiple modifiers silently break each other |
 | `loadItem` not `loadFileRepresentation` for drag-and-drop | `loadFileRepresentation` copies the file to a temp location, losing the sandbox-scoped URL |

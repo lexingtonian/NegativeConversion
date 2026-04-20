@@ -433,7 +433,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.7;
+				CURRENT_PROJECT_VERSION = 1.8;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -445,7 +445,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.14;
+				MARKETING_VERSION = 1.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "art.slowlight.Negative-Conversion";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -468,7 +468,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.7;
+				CURRENT_PROJECT_VERSION = 1.8;
 				DEVELOPMENT_TEAM = 3MAQURZT2C;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -491,7 +491,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.14;
+				MARKETING_VERSION = 1.15;
 				PRODUCT_BUNDLE_IDENTIFIER = "art.slowlight.Negative-Conversion";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

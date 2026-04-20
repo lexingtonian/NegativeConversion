@@ -85,7 +85,7 @@ class ImageProcessorColor {
 
     // MARK: - Convert Negative
 
-    func convertImageColor(sourceURL: URL, outputDirectory: URL, referenceURL: URL? = nil, outputFormat: OutputFormat = .jpeg, normalizeMidtones: Bool = false, transferLuminance: Bool = false, balanceContrast: Bool = false, sourceIsGrayscale: Bool = false) async throws {
+    func convertImageColor(sourceURL: URL, outputDirectory: URL, referenceURL: URL? = nil, outputFormat: OutputFormat = .jpeg, brightnessAdjust: Double = 0.0, contrastAdjust: Double = 0.0, saturationAdjust: Double = 0.0, transferLuminance: Bool = false, sourceIsGrayscale: Bool = false) async throws {
         let needsScope = sourceURL.startAccessingSecurityScopedResource()
         defer { if needsScope { sourceURL.stopAccessingSecurityScopedResource() } }
 
@@ -136,13 +136,10 @@ class ImageProcessorColor {
             finalPositive = try applyReferenceBrightness(finalPositive, reference: reference)
         }
 
-        if normalizeMidtones {
-            finalPositive = try normalizeMidtonesColor(finalPositive)
-            print("✓ Midtones normalized")
-        }
-        if balanceContrast {
-            finalPositive = try balanceContrastColor(finalPositive)
-            print("✓ Contrast balanced")
+        if brightnessAdjust != 0.0 || contrastAdjust != 0.0 || saturationAdjust != 0.0 {
+            finalPositive = try applyManualAdjustments(finalPositive,
+                brightness: brightnessAdjust, contrast: contrastAdjust, saturation: saturationAdjust)
+            print("✓ Manual adjustments applied")
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_p", outputFormat: outputFormat)
@@ -152,7 +149,7 @@ class ImageProcessorColor {
 
     // MARK: - Enhance Positive
 
-    func enhancePositiveColor(sourceURL: URL, outputDirectory: URL, referenceURL: URL? = nil, outputFormat: OutputFormat = .jpeg, normalizeMidtones: Bool = false, transferLuminance: Bool = false, balanceContrast: Bool = false, sourceIsGrayscale: Bool = false) async throws {
+    func enhancePositiveColor(sourceURL: URL, outputDirectory: URL, referenceURL: URL? = nil, outputFormat: OutputFormat = .jpeg, brightnessAdjust: Double = 0.0, contrastAdjust: Double = 0.0, saturationAdjust: Double = 0.0, transferLuminance: Bool = false, sourceIsGrayscale: Bool = false) async throws {
         let needsScope = sourceURL.startAccessingSecurityScopedResource()
         defer { if needsScope { sourceURL.stopAccessingSecurityScopedResource() } }
 
@@ -194,13 +191,10 @@ class ImageProcessorColor {
             finalImage = try applyReferenceBrightness(finalImage, reference: reference)
         }
 
-        if normalizeMidtones {
-            finalImage = try normalizeMidtonesColor(finalImage)
-            print("✓ Enhance Midtones normalized")
-        }
-        if balanceContrast {
-            finalImage = try balanceContrastColor(finalImage)
-            print("✓ Enhance Contrast balanced")
+        if brightnessAdjust != 0.0 || contrastAdjust != 0.0 || saturationAdjust != 0.0 {
+            finalImage = try applyManualAdjustments(finalImage,
+                brightness: brightnessAdjust, contrast: contrastAdjust, saturation: saturationAdjust)
+            print("✓ Enhance manual adjustments applied")
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_e", outputFormat: outputFormat)
@@ -855,6 +849,98 @@ class ImageProcessorColor {
         guard let kernel = CIKernel(source: src) else { throw ProcessingErrorColor.failedToProcessImage }
         guard let out = kernel.apply(extent: image.extent, roiCallback: { _, r in r },
                                      arguments: [image, gamma as NSNumber])
+        else { throw ProcessingErrorColor.failedToProcessImage }
+        return out
+    }
+
+    // MARK: - Manual adjustments (brightness, contrast, saturation)
+    //
+    // All three operate in Lab color space on L only (brightness, contrast)
+    // or on a+b channels only (saturation). No clipping — all curves are
+    // monotonic and asymptote at the extremes.
+    //
+    // brightness: -1.0 = darkest (gamma 3.0), 0.0 = no effect, +1.0 = brightest (gamma 0.33)
+    // contrast:   -1.0 = flattest S-curve, 0.0 = no effect, +1.0 = steepest S-curve
+    // saturation: -1.0 = fully desaturated, 0.0 = no effect, +1.0 = maximum boost
+
+    private func applyManualAdjustments(_ image: CIImage, brightness: Double, contrast: Double, saturation: Double) throws -> CIImage {
+
+        // Map brightness -1..+1 → gamma 3.0..0.33 (center=1.0=no effect)
+        // gamma < 1 brightens, gamma > 1 darkens
+        let gamma: Float
+        if brightness >= 0 {
+            gamma = Float(1.0 - brightness * (1.0 - 0.33))  // 1.0 → 0.33
+        } else {
+            gamma = Float(1.0 + (-brightness) * (3.0 - 1.0)) // 1.0 → 3.0
+        }
+
+        // Map contrast -1..+1 → sigmoid k: negative k flattens, positive k steepens
+        // k=0 = linear (no effect), k>0 = more contrast, k<0 = less contrast
+        let k = Float(contrast * 6.0)  // range -6.0 to +6.0
+
+        // Map saturation -1..+1 → a+b scale factor
+        // 0.0 = fully desaturated, 1.0 = no effect, 2.0 = doubled saturation
+        let satScale = Float(1.0 + saturation)  // -1→0, 0→1, +1→2
+
+        print("📊 Manual adjustments — brightness gamma=\(String(format:"%.3f",gamma)) contrast k=\(String(format:"%.2f",k)) saturation scale=\(String(format:"%.2f",satScale))")
+
+        let src = """
+        kernel vec4 manualAdjust(sampler src, float gamma, float k, float satScale) {
+            vec4 px = sample(src, samplerCoord(src));
+            float r = clamp(px.r, 0.0, 1.0);
+            float g = clamp(px.g, 0.0, 1.0);
+            float b = clamp(px.b, 0.0, 1.0);
+
+            // RGB -> XYZ -> Lab
+            float x = r*0.4124564 + g*0.3575761 + b*0.1804375;
+            float y = r*0.2126729 + g*0.7151522 + b*0.0721750;
+            float z = r*0.0193339 + g*0.1191920 + b*0.9503041;
+            float xn=x/0.95047; float yn=y/1.00000; float zn=z/1.08883;
+            float fx = xn>0.008856 ? pow(xn,0.333333) : 7.787*xn+0.137931;
+            float fy = yn>0.008856 ? pow(yn,0.333333) : 7.787*yn+0.137931;
+            float fz = zn>0.008856 ? pow(zn,0.333333) : 7.787*zn+0.137931;
+            float L = 116.0*fy - 16.0;
+            float A = 500.0*(fx - fy);
+            float B = 200.0*(fy - fz);
+
+            // Brightness: gamma on L (normalised 0-1)
+            float Ln = clamp(L/100.0, 0.001, 0.999);
+            float Lb = pow(Ln, gamma);
+
+            // Contrast: S-curve on L
+            // k=0 → linear (no change), k>0 → more contrast, k<0 → less contrast
+            float Lc;
+            if (abs(k) < 0.01) {
+                Lc = Lb;
+            } else {
+                float s0 = 1.0/(1.0+exp( k*0.5));
+                float s1 = 1.0/(1.0+exp(-k*0.5));
+                float range = s1 - s0;
+                Lc = range > 0.001 ? (1.0/(1.0+exp(-k*(Lb-0.5)))-s0)/range : Lb;
+            }
+            float Lnew = clamp(Lc * 100.0, 0.0, 100.0);
+
+            // Saturation: scale a+b channels
+            float Anew = clamp(A * satScale, -128.0, 127.0);
+            float Bnew = clamp(B * satScale, -128.0, 127.0);
+
+            // Lab -> XYZ -> RGB
+            float fy2 = (Lnew+16.0)/116.0;
+            float fx2 = Anew/500.0 + fy2;
+            float fz2 = fy2 - Bnew/200.0;
+            float x2 = fx2>0.206897 ? fx2*fx2*fx2 : (fx2-0.137931)/7.787;
+            float y2 = fy2>0.206897 ? fy2*fy2*fy2 : (fy2-0.137931)/7.787;
+            float z2 = fz2>0.206897 ? fz2*fz2*fz2 : (fz2-0.137931)/7.787;
+            x2*=0.95047; y2*=1.00000; z2*=1.08883;
+            float ro = x2* 3.2404542 - y2*1.5371385 - z2*0.4985314;
+            float go = x2*-0.9692660 + y2*1.8760108 + z2*0.0415560;
+            float bo = x2* 0.0556434 - y2*0.2040259 + z2*1.0572252;
+            return vec4(clamp(ro,0.0,1.0), clamp(go,0.0,1.0), clamp(bo,0.0,1.0), px.a);
+        }
+        """
+        guard let kernel = CIKernel(source: src) else { throw ProcessingErrorColor.failedToProcessImage }
+        guard let out = kernel.apply(extent: image.extent, roiCallback: { _, r in r },
+                                     arguments: [image, gamma as NSNumber, k as NSNumber, satScale as NSNumber])
         else { throw ProcessingErrorColor.failedToProcessImage }
         return out
     }

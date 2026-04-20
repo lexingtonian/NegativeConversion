@@ -59,7 +59,7 @@ class ImageProcessorBW {
 
     // MARK: - Convert Negative (original, untouched)
 
-    func convertImageBW(sourceURL: URL, outputDirectory: URL, outputFormat: OutputFormat = .jpeg, normalizeMidtones: Bool = false, balanceContrast: Bool = false) async throws {
+    func convertImageBW(sourceURL: URL, outputDirectory: URL, outputFormat: OutputFormat = .jpeg, brightnessAdjust: Double = 0.0, contrastAdjust: Double = 0.0, saturationAdjust: Double = 0.0) async throws {
         let needsScope = sourceURL.startAccessingSecurityScopedResource()
         defer { if needsScope { sourceURL.stopAccessingSecurityScopedResource() } }
 
@@ -81,13 +81,10 @@ class ImageProcessorBW {
         print("✓ BW Inverted to positive")
 
         var finalImage: CIImage = positive
-        if normalizeMidtones {
-            finalImage = try normalizeMidtonesKernel(finalImage)
-            print("✓ BW Midtones normalized")
-        }
-        if balanceContrast {
-            finalImage = try balanceContrastBW(finalImage)
-            print("✓ BW Contrast balanced")
+        if brightnessAdjust != 0.0 || contrastAdjust != 0.0 {
+            finalImage = try applyManualAdjustmentsBW(finalImage,
+                brightness: brightnessAdjust, contrast: contrastAdjust)
+            print("✓ BW Manual adjustments applied")
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_p", outputFormat: outputFormat)
@@ -97,7 +94,7 @@ class ImageProcessorBW {
 
     // MARK: - Enhance Positive (new)
 
-    func enhancePositiveBW(sourceURL: URL, outputDirectory: URL, outputFormat: OutputFormat = .jpeg, normalizeMidtones: Bool = false, balanceContrast: Bool = false) async throws {
+    func enhancePositiveBW(sourceURL: URL, outputDirectory: URL, outputFormat: OutputFormat = .jpeg, brightnessAdjust: Double = 0.0, contrastAdjust: Double = 0.0, saturationAdjust: Double = 0.0) async throws {
         let needsScope = sourceURL.startAccessingSecurityScopedResource()
         defer { if needsScope { sourceURL.stopAccessingSecurityScopedResource() } }
 
@@ -118,13 +115,10 @@ class ImageProcessorBW {
         // No inversion — image is already positive
 
         var finalImage: CIImage = stretched
-        if normalizeMidtones {
-            finalImage = try normalizeMidtonesKernel(finalImage)
-            print("✓ BW Enhance Midtones normalized")
-        }
-        if balanceContrast {
-            finalImage = try balanceContrastBW(finalImage)
-            print("✓ BW Enhance Contrast balanced")
+        if brightnessAdjust != 0.0 || contrastAdjust != 0.0 {
+            finalImage = try applyManualAdjustmentsBW(finalImage,
+                brightness: brightnessAdjust, contrast: contrastAdjust)
+            print("✓ BW Enhance Manual adjustments applied")
         }
 
         let outputURL = generateOutputURL(from: sourceURL, outputDirectory: outputDirectory, suffix: "_e", outputFormat: outputFormat)
@@ -342,6 +336,49 @@ class ImageProcessorBW {
         guard let kernel = CIKernel(source: source) else { throw ProcessingErrorBW.failedToProcessImage }
         guard let out = kernel.apply(extent: image.extent, roiCallback: { _, rect in rect },
                                      arguments: [image, gamma as NSNumber])
+        else { throw ProcessingErrorBW.failedToProcessImage }
+        return out
+    }
+
+    // MARK: - Manual adjustments BW (brightness + contrast only, saturation ignored)
+
+    private func applyManualAdjustmentsBW(_ image: CIImage, brightness: Double, contrast: Double) throws -> CIImage {
+
+        let gamma: Float
+        if brightness >= 0 {
+            gamma = Float(1.0 - brightness * (1.0 - 0.33))
+        } else {
+            gamma = Float(1.0 + (-brightness) * (3.0 - 1.0))
+        }
+        let k = Float(contrast * 6.0)
+
+        print("📊 BW Manual adjustments — brightness gamma=\(String(format:"%.3f",gamma)) contrast k=\(String(format:"%.2f",k))")
+
+        let source = """
+        kernel vec4 manualAdjustBW(sampler src, float gamma, float k) {
+            vec4 px = sample(src, samplerCoord(src));
+            float v = clamp(px.r, 0.001, 0.999);
+
+            // Brightness: gamma
+            float vb = pow(v, gamma);
+
+            // Contrast: S-curve (k=0 = no effect)
+            float vc;
+            if (abs(k) < 0.01) {
+                vc = vb;
+            } else {
+                float s0 = 1.0/(1.0+exp( k*0.5));
+                float s1 = 1.0/(1.0+exp(-k*0.5));
+                float range = s1 - s0;
+                vc = range > 0.001 ? (1.0/(1.0+exp(-k*(vb-0.5)))-s0)/range : vb;
+            }
+            float result = clamp(vc, 0.0, 1.0);
+            return vec4(result, result, result, px.a);
+        }
+        """
+        guard let kernel = CIKernel(source: source) else { throw ProcessingErrorBW.failedToProcessImage }
+        guard let out = kernel.apply(extent: image.extent, roiCallback: { _, r in r },
+                                     arguments: [image, gamma as NSNumber, k as NSNumber])
         else { throw ProcessingErrorBW.failedToProcessImage }
         return out
     }
