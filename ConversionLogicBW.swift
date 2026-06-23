@@ -352,7 +352,7 @@ class ImageProcessorBW {
         }
         // The following line was too modest; thus replaced
         //let k = Float(contrast * 6.0)  // range -6.0 to +6.0
-        //Replacement:
+        //Replacement HERE:
         let k = Float(contrast >= 0
             ? pow(contrast, 1.5) * 6.0
             : -pow(-contrast, 1.5) * 6.0)
