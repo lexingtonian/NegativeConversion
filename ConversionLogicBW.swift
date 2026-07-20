@@ -25,6 +25,7 @@ private let bwMaxBrightnessCorrection: Double = 0.65  // fraction of distance to
 private let bwTargetStd:             Double = 0.22   // luminance std dev target for contrast boost
 private let bwMaxContrastK:          Float  = 6.0    // sigmoid steepness cap
 private let bwContrastDeadzone:      Double = 0.85   // fraction of targetStd below which boost kicks in
+private let bwMaxStretchGain: Double = 3.0   // cap for flat sources; images with gain below this are unaffected
 
 // MARK: - Enums
 enum ProcessingErrorBW: LocalizedError {
@@ -139,18 +140,21 @@ class ImageProcessorBW {
         return image
     }
 
+    
     private func loadRAWImageBW(from url: URL) throws -> CIImage {
-        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-              CGImageSourceGetCount(imageSource) > 0 else {
+        guard let rawFilter = CIRAWFilter(imageURL: url) else {
             throw ProcessingErrorBW.failedToLoadRAWImage
         }
-        // Load full-resolution RAW — no thumbnail, no size cap
-        guard let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+        rawFilter.sharpnessAmount = 0
+        if rawFilter.isLuminanceNoiseReductionSupported {
+            rawFilter.luminanceNoiseReductionAmount = 0.4
+        }
+        guard let image = rawFilter.outputImage else {
             throw ProcessingErrorBW.failedToLoadRAWImage
         }
-        return CIImage(cgImage: cgImage)
+        return image
     }
-
+    
     // MARK: - Step 1: Grayscale kernel
 
     private func toGrayscaleKernel(_ image: CIImage) throws -> CIImage {
@@ -234,9 +238,23 @@ class ImageProcessorBW {
             return image
         }
 
-        let gain = Float(1.0 / (hi - lo))
-        let bias = Float(-lo / (hi - lo))
-        print("📊 BW Stretch: gain=\(String(format: "%.3f", gain))  bias=\(String(format: "%.4f", bias))")
+        //let gain = Float(1.0 / (hi - lo))
+        //let bias = Float(-lo / (hi - lo))
+        //print("📊 BW Stretch: gain=\(String(format: "%.3f", gain))  bias=\(String(format: "%.4f", bias))")
+        let rawGain = 1.0 / (hi - lo)
+        let gain: Float
+        let bias: Float
+        if rawGain <= bwMaxStretchGain {
+            gain = Float(rawGain)
+            bias = Float(-lo * rawGain)
+            print("📊 BW Stretch: gain=\(String(format: "%.3f", gain))  bias=\(String(format: "%.4f", bias)) (full range)")
+        } else {
+            let mid = (lo + hi) / 2.0
+            gain = Float(bwMaxStretchGain)
+            bias = Float(0.5 - mid * bwMaxStretchGain)
+            print("📊 BW Stretch: gain CAPPED at \(String(format: "%.1f", bwMaxStretchGain)) (raw \(String(format: "%.2f", rawGain))), centered on mid=\(String(format: "%.3f", mid))")
+        }
+        
 
         let source = """
         kernel vec4 stretch(sampler src, float gain, float bias) {
