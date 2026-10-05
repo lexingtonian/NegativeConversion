@@ -145,6 +145,7 @@ class ImageProcessorBW {
         guard let rawFilter = CIRAWFilter(imageURL: url) else {
             throw ProcessingErrorBW.failedToLoadRAWImage
         }
+        rawFilter.orientation = .up   // ignore embedded orientation tag — matches old loader's behavior
         rawFilter.sharpnessAmount = 0
         if rawFilter.isLuminanceNoiseReductionSupported {
             rawFilter.luminanceNoiseReductionAmount = 0.4
