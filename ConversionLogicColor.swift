@@ -39,6 +39,23 @@ private let contrastDeadzone:     Double = 0.85  // fraction of targetLStd below
 // Always applied when a reference is present and strength > 0.0.
 private let referenceBrightnessStrength: Double = 0.5
 
+// MARK: - Sample mask (scanner borders / bare light) 26/10/05
+//
+// Pixels that cannot be film are excluded from the statistics that drive
+// orange detection and the per-channel stretch. Tested on the raw negative,
+// before any gains. Affects analysis only, never the output pixels.
+private let maskBlackMax: Double = 0.05   // max channel below this → black border / mask
+private let maskWhiteMin: Double = 0.85   // min channel above this → bare light
+private let maskClipMin:  Double = 0.99   // any channel at/above this → clipped
+private let maskGrowPx:   Int    = 2      // also exclude neighbours within this radius (sample px)
+private let maskMinValidFraction: Double = 0.05  // fall back to unmasked if fewer remain
+
+#if DEBUG
+private let debugSaveSampleMask = true    // writes <name>_samplemask.png to the output folder
+#endif
+
+
+
 // MARK: - Errors
 
 enum ProcessingErrorColor: LocalizedError {
@@ -74,6 +91,12 @@ struct LabStats {
 typealias RGBPixel   = (r: Double, g: Double, b: Double)
 typealias RGBPixelXY = (x: Double, y: Double, r: Double, g: Double, b: Double)
 
+struct SampleMask {
+    let width: Int
+    let height: Int
+    let valid: [Bool]   // row-major, same downscaled grid as samplePixels
+}
+
 // MARK: - Color Image Processor
 
 class ImageProcessorColor {
@@ -94,13 +117,24 @@ class ImageProcessorColor {
         let negative = try loadImage(from: sourceURL)
         print("✓ Loaded: \(negative.extent.width)x\(negative.extent.height)")
 
-        let detectedOrange = try detectOrangeFromFilmBase(negative)
+        // Valid-pixel mask: excludes scanner borders, bare light and clipped pixels
+        // from the analysis below. Computed once on the raw negative.
+        var debugMaskURL: URL? = nil
+        #if DEBUG
+        if debugSaveSampleMask {
+            debugMaskURL = outputDirectory.appendingPathComponent(
+                sourceURL.deletingPathExtension().lastPathComponent + "_samplemask.png")
+        }
+        #endif
+        let sampleMask = try computeSampleMask(negative, debugURL: debugMaskURL)
+
+        let detectedOrange = try detectOrangeFromFilmBase(negative, mask: sampleMask)
         print("🟠 Orange — R:\(String(format:"%.3f",detectedOrange.r)) G:\(String(format:"%.3f",detectedOrange.g)) B:\(String(format:"%.3f",detectedOrange.b))")
 
         let orangeRemoved = try removeOrange(negative, orange: detectedOrange)
         print("✓ Orange removed")
 
-        let stretchedNegative = try stretchChannels(orangeRemoved)
+        let stretchedNegative = try stretchChannels(orangeRemoved, mask: sampleMask)
         print("✓ Tonal stretch done")
 
         let roughPositive = try invert(stretchedNegative)
@@ -229,8 +263,8 @@ class ImageProcessorColor {
 
     // MARK: - Orange detection
 
-    private func detectOrangeFromFilmBase(_ image: CIImage) throws -> RGBPixel {
-        let pixels = try samplePixels(image, border: 0.10)
+    private func detectOrangeFromFilmBase(_ image: CIImage, mask: SampleMask? = nil) throws -> RGBPixel {
+        let pixels = try samplePixels(image, border: 0.10, mask: mask)
         let withLum = pixels.map { p -> (Double, RGBPixel) in
             let lum = 0.299 * p.r + 0.587 * p.g + 0.114 * p.b
             return (lum, p)
@@ -282,8 +316,8 @@ class ImageProcessorColor {
 
     // MARK: - Per-channel tonal stretch
 
-    private func stretchChannels(_ image: CIImage) throws -> CIImage {
-        let pixels = try samplePixels(image, border: 0.10)
+    private func stretchChannels(_ image: CIImage, mask: SampleMask? = nil) throws -> CIImage {
+        let pixels = try samplePixels(image, border: 0.10, mask: mask)
         var reds   = pixels.map { Float($0.r) }
         var greens = pixels.map { Float($0.g) }
         var blues  = pixels.map { Float($0.b) }
@@ -722,30 +756,46 @@ class ImageProcessorColor {
 
     // MARK: - Pixel sampling
 
-    private func samplePixels(_ image: CIImage, border: Double) throws -> [RGBPixel] {
-        let scale = min(512.0 / image.extent.width, 512.0 / image.extent.height)
-        let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        guard let cg = context.createCGImage(scaled, from: scaled.extent,
-                                              format: .RGBA8,
-                                              colorSpace: CGColorSpaceCreateDeviceRGB()),
-              let provider = cg.dataProvider,
-              let cfData = provider.data,
-              let data = CFDataGetBytePtr(cfData) else { throw ProcessingErrorColor.failedToProcessImage }
-        let w = cg.width; let h = cg.height; let bpr = cg.bytesPerRow
-        let x0 = Int(Double(w)*border); let x1 = w-x0
-        let y0 = Int(Double(h)*border); let y1 = h-y0
-        var result: [RGBPixel] = []
-        result.reserveCapacity((x1-x0)*(y1-y0))
-        for y in y0..<y1 {
-            for x in x0..<x1 {
-                let i = y*bpr + x*4
-                result.append((r: Double(data[i])/255.0,
-                               g: Double(data[i+1])/255.0,
-                               b: Double(data[i+2])/255.0))
-            }
-        }
-        return result
-    }
+                private func samplePixels(_ image: CIImage, border: Double, mask: SampleMask? = nil) throws -> [RGBPixel] {
+                    let scale = min(512.0 / image.extent.width, 512.0 / image.extent.height)
+                    let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                    guard let cg = context.createCGImage(scaled, from: scaled.extent,
+                                                          format: .RGBA8,
+                                                          colorSpace: CGColorSpaceCreateDeviceRGB()),
+                          let provider = cg.dataProvider,
+                          let cfData = provider.data,
+                          let data = CFDataGetBytePtr(cfData) else { throw ProcessingErrorColor.failedToProcessImage }
+                    let w = cg.width; let h = cg.height; let bpr = cg.bytesPerRow
+                    let x0 = Int(Double(w)*border); let x1 = w-x0
+                    let y0 = Int(Double(h)*border); let y1 = h-y0
+
+                    var activeMask = mask
+                    if let m = mask, m.width != w || m.height != h {
+                        print("⚠️ Sample mask \(m.width)x\(m.height) ≠ sample \(w)x\(h) — ignoring mask")
+                        activeMask = nil
+                    }
+
+                    var result: [RGBPixel] = []
+                    result.reserveCapacity((x1-x0)*(y1-y0))
+                    for y in y0..<y1 {
+                        for x in x0..<x1 {
+                            if let m = activeMask, !m.valid[y*w + x] { continue }
+                            let i = y*bpr + x*4
+                            result.append((r: Double(data[i])/255.0,
+                                           g: Double(data[i+1])/255.0,
+                                           b: Double(data[i+2])/255.0))
+                        }
+                    }
+
+                    if activeMask != nil {
+                        let boxCount = (x1-x0)*(y1-y0)
+                        if Double(result.count) < Double(boxCount) * maskMinValidFraction {
+                            print("⚠️ Sample mask left \(result.count) of \(boxCount) pixels — falling back to unmasked")
+                            return try samplePixels(image, border: border, mask: nil)
+                        }
+                    }
+                    return result
+                }
 
 
     private func samplePixelsXY(_ image: CIImage, border: Double) throws -> [RGBPixelXY] {
@@ -776,6 +826,81 @@ class ImageProcessorColor {
         }
         return result
     }
+                
+                // MARK: - Sample mask
+
+                private func computeSampleMask(_ image: CIImage, debugURL: URL? = nil) throws -> SampleMask {
+                    let scale = min(512.0 / image.extent.width, 512.0 / image.extent.height)
+                    let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                    guard let cg = context.createCGImage(scaled, from: scaled.extent,
+                                                          format: .RGBA8,
+                                                          colorSpace: CGColorSpaceCreateDeviceRGB()),
+                          let provider = cg.dataProvider,
+                          let cfData = provider.data,
+                          let data = CFDataGetBytePtr(cfData) else { throw ProcessingErrorColor.failedToProcessImage }
+                    let w = cg.width; let h = cg.height; let bpr = cg.bytesPerRow
+
+                    // 1. Classify each sample pixel on the raw negative
+                    var bad = [Bool](repeating: false, count: w*h)
+                    var nBlack = 0, nWhite = 0, nClip = 0
+                    for y in 0..<h {
+                        for x in 0..<w {
+                            let i = y*bpr + x*4
+                            let r = Double(data[i])/255.0, g = Double(data[i+1])/255.0, b = Double(data[i+2])/255.0
+                            let hi = max(r, g, b), lo = min(r, g, b)
+                            if hi < maskBlackMax      { bad[y*w+x] = true; nBlack += 1 }
+                            else if lo > maskWhiteMin { bad[y*w+x] = true; nWhite += 1 }
+                            else if hi >= maskClipMin { bad[y*w+x] = true; nClip  += 1 }
+                        }
+                    }
+
+                    // 2. Grow the exclusion to cover transition pixels at edges
+                    var valid = [Bool](repeating: true, count: w*h)
+                    let rad = maskGrowPx
+                    for y in 0..<h {
+                        for x in 0..<w where bad[y*w+x] {
+                            for yy in max(0, y-rad)...min(h-1, y+rad) {
+                                for xx in max(0, x-rad)...min(w-1, x+rad) { valid[yy*w+xx] = false }
+                            }
+                        }
+                    }
+
+                    let total = Double(w*h)
+                    let nExcluded = valid.reduce(0) { $0 + ($1 ? 0 : 1) }
+                    func pct(_ n: Int) -> String { String(format: "%.1f%%", Double(n) / total * 100) }
+                    print("🧭 Sample mask \(w)x\(h) — black \(pct(nBlack)), white \(pct(nWhite)), clipped \(pct(nClip)), excluded after grow \(pct(nExcluded))")
+                    if Double(nClip) / total > 0.01 {
+                        print("⚠️ More than 1% of the frame is clipped — scan may be overexposed")
+                    }
+                    if Double(nExcluded) / total > 0.50 {
+                        print("⚠️ Sample mask excludes over half the frame — check for over-exclusion")
+                    }
+
+                    #if DEBUG
+                    if let url = debugURL {
+                        var px = [UInt8](repeating: 255, count: w*h*4)
+                        for y in 0..<h {
+                            for x in 0..<w {
+                                let s = y*bpr + x*4, d = (y*w + x)*4
+                                if valid[y*w+x] { px[d] = data[s]; px[d+1] = data[s+1]; px[d+2] = data[s+2] }
+                                else            { px[d] = 255;     px[d+1] = 0;         px[d+2] = 0 }
+                            }
+                        }
+                        if let dbgProvider = CGDataProvider(data: Data(px) as CFData),
+                           let img = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                                             bytesPerRow: w*4, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                                             provider: dbgProvider, decode: nil,
+                                             shouldInterpolate: false, intent: .defaultIntent),
+                           let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) {
+                            CGImageDestinationAddImage(dest, img, nil)
+                            if CGImageDestinationFinalize(dest) { print("🧭 Sample mask saved: \(url.lastPathComponent)") }
+                        }
+                    }
+                    #endif
+
+                    return SampleMask(width: w, height: h, valid: valid)
+                }
 
     // MARK: - Reference brightness nudge
     //
