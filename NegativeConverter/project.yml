@@ -1,0 +1,67 @@
+# Xcode project for the App Store build. Generate it with:  xcodegen
+# The Swift package (Package.swift) stays in use for `swift test` and the
+# command-line test modes; this project does not include those modes.
+name: NegativeConverter
+options:
+  bundleIdPrefix: art.slowlight
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    DEVELOPMENT_TEAM: 3MAQURZT2C
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  NegativeCore:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: Sources/NegativeCore
+        excludes: ["**/.DS_Store"]
+    settings:
+      base:
+        PRODUCT_NAME: NegativeCore
+        SKIP_INSTALL: YES
+
+  NegativeConverter:
+    type: application
+    platform: macOS
+    dependencies:
+      - target: NegativeCore
+        link: true
+    sources:
+      - path: Sources/NegativeConverter
+        excludes: ["**/.DS_Store"]
+      - path: Resources/Assets.xcassets
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleName: Negative Converter
+        CFBundleDisplayName: Negative Converter
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.photography
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: "© 2026 Ari Jaaksi. All rights reserved."
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        # Must match the app already on the App Store ("Negative Conversion").
+        PRODUCT_BUNDLE_IDENTIFIER: art.slowlight.Negative-Conversion
+        PRODUCT_NAME: Negative Converter
+        PRODUCT_MODULE_NAME: NegativeConverter
+        MARKETING_VERSION: "2.0"
+        CURRENT_PROJECT_VERSION: "200"
+        CODE_SIGN_ENTITLEMENTS: NegativeConverter.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+        GENERATE_INFOPLIST_FILE: NO
