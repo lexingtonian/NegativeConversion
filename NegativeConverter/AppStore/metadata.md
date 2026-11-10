@@ -1,10 +1,10 @@
-# App Store texts for Negative Converter 2.0
+# App Store texts for Negative Conversion 2.0
 
 Character counts are checked against Apple's limits.
 
-## App name  (18/30)
+## App name  (19/30)
 
-Negative Converter
+Negative Conversion
 
 ## Subtitle  (30/30)
 
@@ -18,14 +18,14 @@ Turn camera scans of colour and black-and-white negatives into natural-looking p
 
 film,scan,invert,inversion,analog,analogue,35mm,120,raw,C-41,orange mask,darkroom,B&W,monochrome
 
-## Description  (1757/4000)
+## Description  (1759/4000)
 
-Negative Converter turns camera scans of film negatives into positive photographs. Drop in your scans, check the previews, press Convert.
+Negative Conversion turns camera scans of film negatives into positive photographs. Drop in your scans, check the previews, press Convert.
 
 Built for scanning with a digital camera: camera raw, JPEG and TIFF files are accepted. Raw gives the most faithful result.
 
 EACH FRAME ON ITS OWN
-Your scanning camera sets exposure frame by frame, so Negative Converter measures every frame separately. Nothing is carried over from one frame to the next.
+Your scanning camera sets exposure frame by frame, so Negative Conversion measures every frame separately. Nothing is carried over from one frame to the next.
 
 COLOUR AND BLACK-AND-WHITE
 The orange mask of colour negative film is removed using the film itself, and the three colour layers are balanced against each other. Black-and-white film is recognised automatically and converted to a neutral grey image. You can also choose the film type yourself.
@@ -52,9 +52,9 @@ Everything happens on your Mac. No account, no network connection, no data colle
 
 Requires macOS 13 or later. Runs natively on Apple silicon and Intel Macs.
 
-## What's New in This Version  (799/4000)
+## What's New in This Version  (779/4000)
 
-Negative Conversion is now Negative Converter, rebuilt from the ground up.
+Negative Conversion 2.0 is rebuilt from the ground up.
 
 • New conversion engine: every frame is measured on its own; the orange mask is removed using the film itself
 • Colour and black-and-white film recognised automatically

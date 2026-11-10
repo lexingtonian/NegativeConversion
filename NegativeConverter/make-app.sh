@@ -18,7 +18,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <dict>
     <key>CFBundleExecutable</key><string>NegativeConverter</string>
     <key>CFBundleIdentifier</key><string>art.slowlight.negative-converter</string>
-    <key>CFBundleName</key><string>Negative Converter</string>
+    <key>CFBundleName</key><string>Negative Conversion</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>

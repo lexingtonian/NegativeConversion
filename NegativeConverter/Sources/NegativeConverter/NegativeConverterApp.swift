@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "Negative Converter"
+        window.title = "Negative Conversion"
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentMinSize = NSSize(width: 940, height: 620)
@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Application menu
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Negative Converter",
+        appMenu.addItem(withTitle: "About Negative Conversion",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         servicesItem.submenu = servicesMenu
         appMenu.addItem(servicesItem)
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Hide Negative Converter",
+        appMenu.addItem(withTitle: "Hide Negative Conversion",
                         action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others",
                                     action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenu.addItem(withTitle: "Show All",
                         action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Quit Negative Converter",
+        appMenu.addItem(withTitle: "Quit Negative Conversion",
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         mainMenu.addItem(appItem)

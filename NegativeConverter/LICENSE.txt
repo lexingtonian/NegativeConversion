@@ -1,4 +1,4 @@
-Negative Converter (formerly Negative Conversion)
+Negative Conversion
 Copyright (C) 2025-2026 Ari Jaaksi. All rights reserved.
 
 This software is available under two licensing options:

@@ -13,7 +13,7 @@ cd "$(dirname "$0")"
     -configuration Release -destination 'generic/platform=macOS' \
     -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO build 2>&1 \
     | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)"
-  APP=".build/xcode/Build/Products/Release/Negative Converter.app"
-  [ -d "$APP" ] && { lipo -archs "$APP/Contents/MacOS/Negative Converter"; plutil -p "$APP/Contents/Info.plist"; }
+  APP=".build/xcode/Build/Products/Release/Negative Conversion.app"
+  [ -d "$APP" ] && { lipo -archs "$APP/Contents/MacOS/Negative Conversion"; plutil -p "$APP/Contents/Info.plist"; }
 } > check.log 2>&1
 tail -3 check.log

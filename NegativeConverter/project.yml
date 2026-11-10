@@ -48,8 +48,8 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleName: Negative Converter
-        CFBundleDisplayName: Negative Converter
+        CFBundleName: Negative Conversion
+        CFBundleDisplayName: Negative Conversion
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.photography
@@ -62,10 +62,10 @@ targets:
       base:
         # Must match the app already on the App Store ("Negative Conversion").
         PRODUCT_BUNDLE_IDENTIFIER: art.slowlight.Negative-Conversion
-        PRODUCT_NAME: Negative Converter
+        PRODUCT_NAME: Negative Conversion
         PRODUCT_MODULE_NAME: NegativeConverter
         MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "200"
+        CURRENT_PROJECT_VERSION: "201"
         CODE_SIGN_ENTITLEMENTS: NegativeConverter.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
