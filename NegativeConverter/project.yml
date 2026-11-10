@@ -26,6 +26,12 @@ targets:
       base:
         PRODUCT_NAME: NegativeCore
         SKIP_INSTALL: YES
+      configs:
+        # The pixel maths is unusably slow unoptimised; optimise it even
+        # when running from Xcode.
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_COMPILATION_MODE: wholemodule
 
   NegativeConverter:
     type: application
@@ -65,3 +71,6 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         COMBINE_HIDPI_IMAGES: YES
         GENERATE_INFOPLIST_FILE: NO
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
