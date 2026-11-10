@@ -74,3 +74,21 @@ targets:
       configs:
         Debug:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+schemes:
+  NegativeConverter:
+    build:
+      targets:
+        NegativeConverter: all
+    run:
+      # Run the optimised build without GPU checks: under Xcode's defaults the
+      # app runs about ten times slower than it really is.
+      config: Release
+      enableGPUFrameCaptureMode: disabled
+      enableGPUValidationMode: disabled
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
