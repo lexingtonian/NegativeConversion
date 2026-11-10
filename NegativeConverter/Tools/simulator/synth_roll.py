@@ -1,3 +1,7 @@
+# Copyright (C) 2025-2026 Ari Jaaksi. All rights reserved.
+# Licensed under GPLv3 or a commercial license.
+# See LICENSE.txt for details or contact [ari@slowlight.art] for commercial licensing.
+
 import numpy as np, sys, os
 from PIL import Image
 from scipy import ndimage

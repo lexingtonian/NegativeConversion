@@ -1,3 +1,7 @@
+// Copyright (C) 2025-2026 Ari Jaaksi. All rights reserved.
+// Licensed under GPLv3 or a commercial license.
+// See LICENSE.txt for details or contact [ari@slowlight.art] for commercial licensing.
+
 // Built only by the Swift package (Package.swift defines HEADLESS), never
 // into the App Store app.
 #if HEADLESS

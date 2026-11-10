@@ -1,3 +1,7 @@
+# Copyright (C) 2025-2026 Ari Jaaksi. All rights reserved.
+# Licensed under GPLv3 or a commercial license.
+# See LICENSE.txt for details or contact [ari@slowlight.art] for commercial licensing.
+
 import numpy as np, sys, os, glob
 from PIL import Image, ImageDraw
 D = sys.argv[1]; names = sys.argv[3:]; out = sys.argv[2]

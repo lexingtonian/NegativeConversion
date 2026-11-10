@@ -127,3 +127,9 @@ The numbers that shape the result are constants at the top of
 - JPEG output is 8-bit sRGB, so some tonal precision of a raw file is lost;
   TIFF keeps 16 bits. A 16-bit TIFF of a 24-megapixel frame is about 140 MB,
   black-and-white included (it is written as RGB).
+
+## Licence
+
+Copyright (C) 2025-2026 Ari Jaaksi. Available under the GNU General Public
+License v3 or a commercial licence; see `LICENSE.txt`. Commercial licensing:
+ari@slowlight.art.
