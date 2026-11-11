@@ -155,7 +155,9 @@ public enum NegativeAnalyzer {
     static let layerContrastLimits: ClosedRange<Float> = 0.6...1.6
 
     /// Upper limit of chroma spread for film to be taken as black-and-white.
-    static let blackAndWhiteChromaSpread: Float = 0.09
+    /// On 191 real black-and-white frames the largest spread was 0.056; a
+    /// nearly colourless colour frame (mostly pale blue sky) measured 0.085.
+    static let blackAndWhiteChromaSpread: Float = 0.07
     /// Upper limit, for black-and-white film, of the chroma spread between
     /// the most differently coloured parts of the picture (0.2 % at each end).
     /// Real black-and-white scans stayed below 0.13, colour ones above 0.25.
