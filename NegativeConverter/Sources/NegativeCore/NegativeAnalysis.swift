@@ -359,11 +359,15 @@ public enum NegativeAnalyzer {
         let tooDense = colorThinEnd + SIMD3<Float>(repeating: reliableDensityRange)
         var histRG = Histogram(lowerBound: -4, upperBound: 4, binWidth: 0.002)
         var histBG = histRG
+        // Measured over the automatically found picture with only a narrow
+        // margin (not the inner area used for tones, and not an area set by
+        // hand): colour or not is decided by the whole picture.
         let block = 8
-        var by = rect.y0
-        while by + block <= rect.y1 {
-            var bx = rect.x0
-            while bx + block <= rect.x1 {
+        let cr = usedFallback ? rect : located.colourRect
+        var by = cr.y0
+        while by + block <= cr.y1 {
+            var bx = cr.x0
+            while bx + block <= cr.x1 {
                 var sumRG: Float = 0
                 var sumBG: Float = 0
                 var clean = true
@@ -921,8 +925,12 @@ public enum NegativeAnalyzer {
 
     /// Bounding box of the film, minus any unexposed film border (rebate), minus
     /// a small safety margin.
+    /// Also returns the area used for telling colour from black-and-white:
+    /// the same box with only a narrow margin. Whether the film is colour is
+    /// a property of the whole picture, and a small coloured thing near the
+    /// edge must still count.
     private static func pictureRect(logL: [Float], excluded: [UInt8], width: Int, height: Int)
-        -> (rect: IntRect, clearBorderFound: Bool) {
+        -> (rect: IntRect, clearBorderFound: Bool, colourRect: IntRect) {
         var rowValid = [Int](repeating: 0, count: height)
         var colValid = [Int](repeating: 0, count: width)
         for y in 0..<height {
@@ -937,7 +945,8 @@ public enum NegativeAnalyzer {
               let yLast = rowValid.lastIndex(where: { $0 >= rowNeed }),
               let x0 = colValid.firstIndex(where: { $0 >= colNeed }),
               let xLast = colValid.lastIndex(where: { $0 >= colNeed }) else {
-            return (IntRect(x0: 0, y0: 0, x1: width, y1: height), false)
+            let whole = IntRect(x0: 0, y0: 0, x1: width, y1: height)
+            return (whole, false, whole)
         }
         var rect = IntRect(x0: x0, y0: y0, x1: xLast + 1, y1: yLast + 1)
 
@@ -946,7 +955,7 @@ public enum NegativeAnalyzer {
         for y in rect.y0..<rect.y1 {
             for x in rect.x0..<rect.x1 where excluded[y * width + x] == 0 { hist.add(logL[y * width + x]) }
         }
-        guard hist.total > 0 else { return (rect, false) }
+        guard hist.total > 0 else { return (rect, false, rect) }
         let clearLevel = hist.percentile(0.995) - 0.10
 
         // A line counts as film border when nearly all of it is clear film.
@@ -1002,6 +1011,15 @@ public enum NegativeAnalyzer {
         let clearBorderFound = max(top, bottom) >= max(3, boxHeight / 100)
             || max(left, right) >= max(3, boxWidth / 100)
 
+        var colourRect = rect
+        let colourMargin = max(2, Int((0.015 * Float(min(rect.x1 - rect.x0, rect.y1 - rect.y0))).rounded()))
+        if rect.x1 - rect.x0 > colourMargin * 4 && rect.y1 - rect.y0 > colourMargin * 4 {
+            colourRect.x0 += colourMargin
+            colourRect.x1 -= colourMargin
+            colourRect.y0 += colourMargin
+            colourRect.y1 -= colourMargin
+        }
+
         // Safety margin: 10 % of the shorter side on every side. It keeps thin
         // dense strips along the edges (holder, film edge) and edge falloff out
         // of the measurement; the picture's own blacks and whites are almost
@@ -1013,6 +1031,6 @@ public enum NegativeAnalyzer {
             rect.y0 += margin
             rect.y1 -= margin
         }
-        return (rect, clearBorderFound)
+        return (rect, clearBorderFound, colourRect)
     }
 }
