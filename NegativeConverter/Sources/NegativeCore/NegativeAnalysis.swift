@@ -121,6 +121,25 @@ public enum NegativeAnalyzer {
     /// specular highlights do not dictate the tonal range of the whole picture.
     static let shadowPercentile = 0.004
     static let highlightPercentile = 0.998
+    /// When fitting tones to the picture, white is taken from the bright parts
+    /// of the picture that are larger than this (radius, as a fraction of the
+    /// image's long side; things up to about twice this wide count as small).
+    /// Smaller bright things, such as spotlights, table lamps, windows and sun
+    /// glints, may then burn out instead of dimming everything else.
+    static let smallHighlightRadius: Float = 0.025
+    /// How far (density) small highlights may still raise white above the
+    /// large bright areas: about half a stop.
+    static let smallHighlightAllowance: Float = 0.15
+    /// Ignoring small highlights lowers white by at most this much (density,
+    /// about two stops: spot-lit stages need that much). In a dark scene whose only bright thing is mid-sized
+    /// (a white boat on a dark lake), the "large bright areas" are the dark
+    /// scene itself; without this limit it would be blown up to near white.
+    static let maximumWhiteReduction: Float = 0.60
+    /// Ignoring small highlights never leaves the picture with less range
+    /// than this between black and white (density, about two and a half
+    /// stops). In a night scene the lights are what gives the picture its
+    /// range; without them the dark sky would be stretched into grey.
+    static let minimumRangeWithoutSmallHighlights: Float = 0.75
     /// The clearest half percent of the film is taken as "clear film".
     static let clearFilmPercentile = 0.005
     /// Density width of the "heap" that clear film forms at the clear end of
@@ -377,12 +396,48 @@ public enum NegativeAnalyzer {
         var monoHigh = histMono.percentile(highlightPercentile)
         let monoDense = monoHigh
 
+        // ---- White for "fit to picture": small highlights do not count --------
+        // A few spotlights or lamps easily make up the densest 0.2 % of a
+        // frame. Taken as white, they would push the whole picture down. Only
+        // pixels up to a little above the large bright areas are considered.
+        var whiteGreen = high.y
+        if let large = largeAreaHighlight(logL: logL, excluded: excluded, rect: rect,
+                                          width: width, height: height) {
+            let cap = large + smallHighlightAllowance
+            if monoHigh > cap {
+                var capG = Histogram(lowerBound: -3, upperBound: 9, binWidth: 0.002)
+                var capMono = capG
+                for y in rect.y0..<rect.y1 {
+                    for x in rect.x0..<rect.x1 {
+                        let i = y * width + x
+                        if excluded[i] != 0 { continue }
+                        let d = -logL[i]
+                        if skipClearFilm && d < monoFilmBase + step { continue }
+                        if d > cap { continue }
+                        capG.add(dG[i])
+                        capMono.add(d)
+                    }
+                }
+                if capMono.total > 0 {
+                    whiteGreen = min(high.y, max(capG.percentile(highlightPercentile),
+                                                 high.y - maximumWhiteReduction,
+                                                 low.y + minimumRangeWithoutSmallHighlights))
+                    monoHigh = min(monoHigh, max(capMono.percentile(highlightPercentile),
+                                                 monoHigh - maximumWhiteReduction,
+                                                 monoLow + minimumRangeWithoutSmallHighlights))
+                }
+            }
+        }
+
         // ---- Sanity limits -----------------------------------------------------
         // The three colour layers of a film never differ wildly in contrast. If
         // the measured ranges do, the scene is dominated by one colour; limit
         // the ratio so that colour is not "corrected" into grey.
         let minRange: Float = 0.02
-        let measuredGreenRange = max(high.y - low.y, minRange)
+        let measuredGreenRange = max(whiteGreen - low.y, minRange)
+        // Range of the whole picture, small highlights included, for telling
+        // colour from black-and-white.
+        let fullGreenRange = max(high.y - low.y, minRange)
 
         // How the red and blue layers relate to green is taken from the whole
         // picture, not from its densest spots alone: the brightest things in
@@ -466,7 +521,7 @@ public enum NegativeAnalyzer {
         // not mistaken for black-and-white. It leaves room for the uneven pink
         // or purple stain some black-and-white films keep.
         let hasOrangeMask = colorThinEnd.z - colorThinEnd.x >= orangeMaskDensity
-        let chromaLimit = min(blackAndWhiteChromaSpread, 0.20 * measuredGreenRange)
+        let chromaLimit = min(blackAndWhiteChromaSpread, 0.20 * fullGreenRange)
         let isBlackAndWhite = !hasOrangeMask && chromaSpread < chromaLimit
             && chromaExtremes < blackAndWhiteChromaExtremes
 
@@ -770,6 +825,71 @@ public enum NegativeAnalyzer {
     }
 
     /// Grows the marked area by `radius` pixels in every direction (square kernel).
+    /// Densest level reached by the large bright areas of the picture (in
+    /// luminance density). The picture is reduced to about 400 cells across,
+    /// then opened (minimum, then maximum, over a neighbourhood of
+    /// `smallHighlightRadius`): small dense spots vanish, large areas keep
+    /// their level. Returns nil when there is too little picture to judge.
+    ///
+    /// Clear film inside the area is kept in the map, although it does not
+    /// count as picture elsewhere: a lamp in a black night sky must still be
+    /// seen as small, surrounded by something, not as an island on its own.
+    private static func largeAreaHighlight(logL: [Float], excluded: [UInt8], rect: IntRect,
+                                           width: Int, height: Int) -> Float? {
+        let longSide = max(width, height)
+        let cell = max(1, Int((Float(longSide) / 400).rounded()))
+        let cw = (rect.x1 - rect.x0 + cell - 1) / cell
+        let ch = (rect.y1 - rect.y0 + cell - 1) / cell
+        guard cw > 0, ch > 0 else { return nil }
+        var grid = [Float](repeating: .nan, count: cw * ch)
+        for cy in 0..<ch {
+            for cx in 0..<cw {
+                var sum: Float = 0
+                var count = 0
+                for y in (rect.y0 + cy * cell)..<min(rect.y1, rect.y0 + (cy + 1) * cell) {
+                    for x in (rect.x0 + cx * cell)..<min(rect.x1, rect.x0 + (cx + 1) * cell) {
+                        let i = y * width + x
+                        if excluded[i] != 0 { continue }
+                        sum += -logL[i]
+                        count += 1
+                    }
+                }
+                if count > 0 { grid[cy * cw + cx] = sum / Float(count) }
+            }
+        }
+        let radius = max(1, Int((smallHighlightRadius * Float(longSide) / Float(cell)).rounded()))
+        // One pass of a minimum or maximum filter along rows or columns.
+        // Cells without picture (NaN) neither take part nor receive a value.
+        func pass(_ input: [Float], horizontal: Bool, useMin: Bool) -> [Float] {
+            var output = input
+            for cy in 0..<ch {
+                for cx in 0..<cw {
+                    let i = cy * cw + cx
+                    if input[i].isNaN { continue }
+                    var best = input[i]
+                    for k in -radius...radius where k != 0 {
+                        let x = horizontal ? cx + k : cx
+                        let y = horizontal ? cy : cy + k
+                        if x < 0 || x >= cw || y < 0 || y >= ch { continue }
+                        let v = input[y * cw + x]
+                        if v.isNaN { continue }
+                        best = useMin ? min(best, v) : max(best, v)
+                    }
+                    output[i] = best
+                }
+            }
+            return output
+        }
+        var opened = pass(grid, horizontal: true, useMin: true)
+        opened = pass(opened, horizontal: false, useMin: true)
+        opened = pass(opened, horizontal: true, useMin: false)
+        opened = pass(opened, horizontal: false, useMin: false)
+        var hist = Histogram(lowerBound: -3, upperBound: 9, binWidth: 0.002)
+        for v in opened where !v.isNaN { hist.add(v) }
+        guard hist.total >= 16 else { return nil }
+        return hist.percentile(highlightPercentile)
+    }
+
     private static func dilate(_ mask: inout [UInt8], width: Int, height: Int, radius: Int) {
         var temp = [UInt8](repeating: 0, count: mask.count)
         var prefix = [Int](repeating: 0, count: max(width, height) + 1)
@@ -882,8 +1002,11 @@ public enum NegativeAnalyzer {
         let clearBorderFound = max(top, bottom) >= max(3, boxHeight / 100)
             || max(left, right) >= max(3, boxWidth / 100)
 
-        // Safety margin.
-        let margin = max(2, Int((0.015 * Float(min(rect.x1 - rect.x0, rect.y1 - rect.y0))).rounded()))
+        // Safety margin: 10 % of the shorter side on every side. It keeps thin
+        // dense strips along the edges (holder, film edge) and edge falloff out
+        // of the measurement; the picture's own blacks and whites are almost
+        // never only in its outer tenth. The area can be set by hand if needed.
+        let margin = max(2, Int((0.10 * Float(min(rect.x1 - rect.x0, rect.y1 - rect.y0))).rounded()))
         if rect.x1 - rect.x0 > margin * 4 && rect.y1 - rect.y0 > margin * 4 {
             rect.x0 += margin
             rect.x1 -= margin

@@ -342,4 +342,58 @@ final class NegativeCoreTests: XCTestCase {
         // than that of the whole picture.
         XCTAssertLessThan(chosen.monoHighlightDensity, automatic.monoHighlightDensity - 0.2)
     }
+
+    // MARK: Small highlights and white
+
+    /// Grey scene: dark left half, light right half.
+    private func twoTones(_ u: Float, _ v: Float) -> SIMD3<Float> {
+        // The dark half is a gentle gradient, not one flat level, so that it
+        // is not mistaken for clear film.
+        SIMD3<Float>(repeating: u < 0.5 ? 0.02 + 0.04 * v : 0.25)
+    }
+
+    /// The same scene with many small, very bright spots (lamps) scattered over it.
+    private func twoTonesWithLamps(_ u: Float, _ v: Float) -> SIMD3<Float> {
+        let nearU = abs(u * 10 - (u * 10).rounded()) < 0.06
+        let nearV = abs(v * 8 - (v * 8).rounded()) < 0.06
+        return nearU && nearV ? SIMD3<Float>(repeating: 1.2) : twoTones(u, v)
+    }
+
+    /// A dark scene whose only bright things are small, very bright spots.
+    private func darkWithLamps(_ u: Float, _ v: Float) -> SIMD3<Float> {
+        let nearU = abs(u * 10 - (u * 10).rounded()) < 0.06
+        let nearV = abs(v * 8 - (v * 8).rounded()) < 0.06
+        return SIMD3<Float>(repeating: nearU && nearV ? 3.0 : 0.02 + 0.04 * v)
+    }
+
+    func testSmallBrightSpotsDoNotSetWhite() {
+        let plain = makeScan(width: 800, height: 534, color: false, scene: twoTones)
+        let lamps = makeScan(width: 800, height: 534, color: false, scene: twoTonesWithLamps)
+        let a = NegativeAnalyzer.analyze(half: plain.pixels, width: plain.width, height: plain.height)
+        let b = NegativeAnalyzer.analyze(half: lamps.pixels, width: lamps.width, height: lamps.height)
+        // The lamps are there, and dense enough to have set white before.
+        XCTAssertGreaterThan(b.monoDenseDensity, a.monoHighlightDensity + 0.25)
+        // White now follows the large light area: at most half a stop above it
+        // (plus a little for measuring on a coarse grid), far below the lamps.
+        XCTAssertLessThanOrEqual(b.monoHighlightDensity,
+                                 a.monoHighlightDensity + NegativeAnalyzer.smallHighlightAllowance + 0.05)
+        XCTAssertLessThan(b.monoHighlightDensity, b.monoDenseDensity - 0.25)
+    }
+
+    func testIgnoringSmallHighlightsLowersWhiteOnlyAsFarAsAllowed() {
+        let scan = makeScan(width: 800, height: 534, color: false, scene: darkWithLamps)
+        let a = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height)
+        XCTAssertLessThan(a.monoHighlightDensity, a.monoDenseDensity - 0.2)
+        XCTAssertGreaterThanOrEqual(a.monoHighlightDensity,
+                                    a.monoDenseDensity - NegativeAnalyzer.maximumWhiteReduction - 0.01)
+        // A dark scene keeps enough range that it is not stretched into grey.
+        XCTAssertGreaterThanOrEqual(a.monoHighlightDensity - a.monoShadowDensity,
+                                    NegativeAnalyzer.minimumRangeWithoutSmallHighlights - 0.01)
+    }
+
+    func testLargeBrightAreaStillSetsWhite() {
+        let scan = makeScan(width: 800, height: 534, color: false, scene: twoTones)
+        let a = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height)
+        XCTAssertEqual(a.monoHighlightDensity, a.monoDenseDensity, accuracy: 0.02)
+    }
 }
