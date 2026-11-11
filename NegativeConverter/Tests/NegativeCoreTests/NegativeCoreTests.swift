@@ -307,4 +307,39 @@ final class NegativeCoreTests: XCTestCase {
         }
         XCTAssertEqual(parallel, result.output)
     }
+
+    // MARK: Measured area chosen by hand
+
+    func testDraggedAreaStaysInsideTheImageAndKeepsAMinimumSize() {
+        let r = NormalizedRect(x0: 0.2, y0: 0.2, x1: 0.6, y1: 0.7)
+        let moved = r.dragged(.all, dx: 0.9, dy: -0.5)
+        XCTAssertEqual(moved.x1, 1, accuracy: 1e-6)
+        XCTAssertEqual(moved.x1 - moved.x0, 0.4, accuracy: 1e-6)
+        XCTAssertEqual(moved.y0, 0, accuracy: 1e-6)
+        XCTAssertEqual(moved.y1 - moved.y0, 0.5, accuracy: 1e-6)
+        let squeezed = r.dragged([.left, .top], dx: 0.9, dy: 0.9, minSize: 0.05)
+        XCTAssertEqual(squeezed.x0, 0.55, accuracy: 1e-6)
+        XCTAssertEqual(squeezed.y0, 0.65, accuracy: 1e-6)
+        XCTAssertEqual(squeezed.x1, 0.6, accuracy: 1e-6)
+        let widened = r.dragged(.right, dx: 2, dy: 0)
+        XCTAssertEqual(widened.x1, 1, accuracy: 1e-6)
+        XCTAssertEqual(widened.x0, 0.2, accuracy: 1e-6)
+    }
+
+    func testHandChosenAreaIsWhatGetsMeasured() {
+        // Dim left half, bright right half.
+        let scan = makeScan(color: false) { u, _ in SIMD3<Float>(repeating: u < 0.5 ? 0.02 : 0.8) }
+        let automatic = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height)
+        let area = NormalizedRect(x0: 0.1, y0: 0.2, x1: 0.4, y1: 0.8)
+        let chosen = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height,
+                                              pictureArea: area)
+        XCTAssertEqual(chosen.pictureArea.x0, area.x0, accuracy: 0.01)
+        XCTAssertEqual(chosen.pictureArea.x1, area.x1, accuracy: 0.01)
+        XCTAssertEqual(chosen.pictureArea.y0, area.y0, accuracy: 0.01)
+        XCTAssertEqual(chosen.pictureArea.y1, area.y1, accuracy: 0.01)
+        XCTAssertFalse(chosen.usedFallbackRegion)
+        // Only the dim half was measured, so its densest content is thinner
+        // than that of the whole picture.
+        XCTAssertLessThan(chosen.monoHighlightDensity, automatic.monoHighlightDensity - 0.2)
+    }
 }

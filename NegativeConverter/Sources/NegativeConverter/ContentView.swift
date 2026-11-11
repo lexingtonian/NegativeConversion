@@ -117,14 +117,10 @@ struct ContentView: View {
                     .aspectRatio(contentMode: .fit)
                     .overlay {
                         if showMeasuredArea, let area = item.analysis?.pictureArea {
-                            GeometryReader { geometry in
-                                Rectangle()
-                                    .strokeBorder(Color.yellow, lineWidth: 1.5)
-                                    .frame(width: geometry.size.width * CGFloat(area.x1 - area.x0),
-                                           height: geometry.size.height * CGFloat(area.y1 - area.y0))
-                                    .offset(x: geometry.size.width * CGFloat(area.x0),
-                                            y: geometry.size.height * CGFloat(area.y0))
+                            MeasuredAreaEditor(area: area) { newArea in
+                                model.setMeasuredArea(newArea, for: item.id)
                             }
+                            .id(item.id)
                         }
                     }
                     .padding(12)
@@ -279,6 +275,12 @@ private struct AdjustmentPanel: View {
 
                 Toggle("Show measured area", isOn: $showMeasuredArea)
                     .toggleStyle(.checkbox)
+                    .fixedSize()
+                    .help("Shows the area the frame is measured from. Drag the frame or its handles to choose the area yourself; it applies to this frame only.")
+                if item.measuredArea != nil {
+                    Button("Automatic Area") { model.setMeasuredArea(nil, for: item.id) }
+                        .help("Go back to the automatically found area.")
+                }
             }
 
             HStack(spacing: 12) {
@@ -345,10 +347,78 @@ private struct AdjustmentPanel: View {
             let joined = notes.joined(separator: ", ")
             text = joined.prefix(1).uppercased() + String(joined.dropFirst()) + "."
         }
+        if item.measuredArea != nil { text = "Measured area set by hand. " + text }
         if settings.toneMode == .filmExposure && !analysis.clearFilmFound {
             text += " No clear film in this frame, so it is fitted to the picture."
         }
         return text
+    }
+}
+
+/// The measured area drawn over the preview. The frame can be moved by
+/// dragging inside it and resized by its corner and edge handles; the new
+/// area is handed on when the drag ends.
+private struct MeasuredAreaEditor: View {
+    let area: NormalizedRect
+    let onCommit: (NormalizedRect) -> Void
+
+    /// Area shown while dragging, before the frame has been measured again.
+    @State private var draft: NormalizedRect?
+    @State private var dragStart: NormalizedRect?
+
+    private static let handles: [NormalizedRect.Edges] = [
+        [.left, .top], [.top], [.right, .top], [.right],
+        [.right, .bottom], [.bottom], [.left, .bottom], [.left],
+    ]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            let r = draft ?? area
+            let frame = CGRect(x: CGFloat(r.x0) * size.width, y: CGFloat(r.y0) * size.height,
+                               width: CGFloat(r.x1 - r.x0) * size.width,
+                               height: CGFloat(r.y1 - r.y0) * size.height)
+            ZStack {
+                Rectangle()
+                    .strokeBorder(Color.yellow, lineWidth: 1.5)
+                    .contentShape(Rectangle())
+                    .frame(width: frame.width, height: frame.height)
+                    .gesture(drag(.all, size: size))
+                    .position(x: frame.midX, y: frame.midY)
+                ForEach(Self.handles, id: \.rawValue) { edges in
+                    Rectangle()
+                        .fill(Color.yellow)
+                        .frame(width: 9, height: 9)
+                        .padding(6)
+                        .contentShape(Rectangle())
+                        .gesture(drag(edges, size: size))
+                        .position(Self.point(edges, in: frame))
+                }
+            }
+            .frame(width: size.width, height: size.height)
+        }
+        .onChange(of: area) { _ in draft = nil }
+    }
+
+    private func drag(_ edges: NormalizedRect.Edges, size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                let start = dragStart ?? (draft ?? area)
+                if dragStart == nil { dragStart = start }
+                draft = start.dragged(edges,
+                                      dx: Float(value.translation.width / max(size.width, 1)),
+                                      dy: Float(value.translation.height / max(size.height, 1)))
+            }
+            .onEnded { _ in
+                dragStart = nil
+                if let draft { onCommit(draft) }
+            }
+    }
+
+    private static func point(_ edges: NormalizedRect.Edges, in frame: CGRect) -> CGPoint {
+        let x = edges.contains(.left) ? frame.minX : edges.contains(.right) ? frame.maxX : frame.midX
+        let y = edges.contains(.top) ? frame.minY : edges.contains(.bottom) ? frame.maxY : frame.midY
+        return CGPoint(x: x, y: y)
     }
 }
 

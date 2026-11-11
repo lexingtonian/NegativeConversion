@@ -18,6 +18,36 @@ public struct NormalizedRect: Equatable, Sendable {
         self.x1 = x1
         self.y1 = y1
     }
+
+    /// Which sides a drag moves. All four sides together move the whole rectangle.
+    public struct Edges: OptionSet, Hashable, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let left = Edges(rawValue: 1)
+        public static let top = Edges(rawValue: 2)
+        public static let right = Edges(rawValue: 4)
+        public static let bottom = Edges(rawValue: 8)
+        public static let all: Edges = [.left, .top, .right, .bottom]
+    }
+
+    /// The rectangle after dragging `edges` by `dx`, `dy` (fractions of the
+    /// image), kept inside the image and no smaller than `minSize` each way.
+    public func dragged(_ edges: Edges, dx: Float, dy: Float, minSize: Float = 0.05) -> NormalizedRect {
+        var r = self
+        if edges == .all {
+            let w = x1 - x0, h = y1 - y0
+            r.x0 = min(max(x0 + dx, 0), 1 - w)
+            r.y0 = min(max(y0 + dy, 0), 1 - h)
+            r.x1 = r.x0 + w
+            r.y1 = r.y0 + h
+            return r
+        }
+        if edges.contains(.left) { r.x0 = min(max(x0 + dx, 0), x1 - minSize) }
+        if edges.contains(.right) { r.x1 = max(min(x1 + dx, 1), x0 + minSize) }
+        if edges.contains(.top) { r.y0 = min(max(y0 + dy, 0), y1 - minSize) }
+        if edges.contains(.bottom) { r.y1 = max(min(y1 + dy, 1), y0 + minSize) }
+        return r
+    }
 }
 
 /// Everything the converter needs to know about one negative. Produced once per
@@ -124,7 +154,11 @@ public enum NegativeAnalyzer {
     /// - Parameters:
     ///   - half: 16-bit half-float RGBA pixels, linear light, top row first.
     ///   - rowStride: number of `UInt16` elements from one row to the next (at least `width * 4`).
-    public static func analyze(half: UnsafePointer<UInt16>, width: Int, height: Int, rowStride: Int) -> NegativeAnalysis {
+    ///   - pictureArea: the area to measure, chosen by hand. When nil the
+    ///     picture area is found automatically. Holder and backlight are
+    ///     left out of the measurement either way.
+    public static func analyze(half: UnsafePointer<UInt16>, width: Int, height: Int, rowStride: Int,
+                               pictureArea: NormalizedRect? = nil) -> NegativeAnalysis {
         precondition(width > 0 && height > 0 && rowStride >= width * 4)
         let n = width * height
 
@@ -194,6 +228,14 @@ public enum NegativeAnalyzer {
         // ---- Picture rectangle -------------------------------------------------
         let located = pictureRect(logL: logL, excluded: excluded, width: width, height: height)
         var rect = located.rect
+        if let area = pictureArea {
+            func pixel(_ v: Float, _ size: Int) -> Int { min(max(Int((v * Float(size)).rounded()), 0), size) }
+            let x0 = min(pixel(area.x0, width), width - 1)
+            let y0 = min(pixel(area.y0, height), height - 1)
+            rect = IntRect(x0: x0, y0: y0,
+                           x1: max(pixel(area.x1, width), x0 + 1),
+                           y1: max(pixel(area.y1, height), y0 + 1))
+        }
 
         // ---- Measuring set -----------------------------------------------------
         var usedFallback = false
@@ -201,7 +243,15 @@ public enum NegativeAnalyzer {
         for y in rect.y0..<rect.y1 {
             for x in rect.x0..<rect.x1 where excluded[y * width + x] == 0 { count += 1 }
         }
-        if count < n / 20 {
+        if pictureArea != nil {
+            // The area was chosen by hand: measure it even if it is small. Only
+            // if holder or backlight cover nearly all of it is that ignored.
+            if count < max(16, (rect.x1 - rect.x0) * (rect.y1 - rect.y0) / 20) {
+                for y in rect.y0..<rect.y1 {
+                    for x in rect.x0..<rect.x1 { excluded[y * width + x] = 0 }
+                }
+            }
+        } else if count < n / 20 {
             // Border detection ate nearly everything: distrust it and use the centre.
             usedFallback = true
             for i in 0..<n { excluded[i] = 0 }
@@ -449,10 +499,12 @@ public enum NegativeAnalyzer {
     }
 
     /// Convenience for callers that hold the pixels in an array.
-    public static func analyze(half: [UInt16], width: Int, height: Int) -> NegativeAnalysis {
+    public static func analyze(half: [UInt16], width: Int, height: Int,
+                               pictureArea: NormalizedRect? = nil) -> NegativeAnalysis {
         precondition(half.count >= width * height * 4)
         return half.withUnsafeBufferPointer {
-            analyze(half: $0.baseAddress!, width: width, height: height, rowStride: width * 4)
+            analyze(half: $0.baseAddress!, width: width, height: height, rowStride: width * 4,
+                    pictureArea: pictureArea)
         }
     }
 

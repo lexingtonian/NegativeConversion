@@ -33,6 +33,10 @@ struct NegativeItem: Identifiable {
     var settings = ConversionSettings()
     var rendered: CGImage?
     var renderGeneration = 0
+    /// Measured area chosen by hand for this frame only; nil = found automatically.
+    /// Deliberately not part of `settings`, so Apply to All never copies it.
+    var measuredArea: NormalizedRect?
+    var analysisGeneration = 0
 
     var name: String { url.lastPathComponent }
 
@@ -219,6 +223,29 @@ final class AppModel: ObservableObject {
                 self.rerender(id)
             }
         )
+    }
+
+    /// Measures the frame again over `area` (nil = find the area automatically)
+    /// and refreshes its preview. Only this frame is affected.
+    func setMeasuredArea(_ area: NormalizedRect?, for id: NegativeItem.ID) {
+        guard let i = index(of: id), let preview = items[i].preview,
+              items[i].measuredArea != area || area == nil else { return }
+        items[i].measuredArea = area
+        items[i].exportStage = .none
+        items[i].analysisGeneration += 1
+        let generation = items[i].analysisGeneration
+        Task {
+            let analysis = await Task.detached(priority: .userInitiated) { () -> NegativeAnalysis in
+                preview.withPixels {
+                    NegativeAnalyzer.analyze(half: $0, width: preview.width, height: preview.height,
+                                             rowStride: preview.rowStride, pictureArea: area)
+                }
+            }.value
+            // Only the most recent request may update the frame.
+            guard let j = index(of: id), items[j].analysisGeneration == generation else { return }
+            items[j].analysis = analysis
+            rerender(id)
+        }
     }
 
     func applySettingsToAll(from id: NegativeItem.ID) {
