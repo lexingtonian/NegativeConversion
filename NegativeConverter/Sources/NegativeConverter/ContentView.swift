@@ -10,7 +10,8 @@ import NegativeCore
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @State private var isDropTargeted = false
-    @State private var showMeasuredArea = false
+    // On by default, so the measured area explains itself; the choice is remembered.
+    @AppStorage("ShowMeasuredArea") private var showMeasuredArea = true
 
     var body: some View {
         VStack(spacing: 0) {
