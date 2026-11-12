@@ -14,3 +14,6 @@ diag.log
 diag-margin.log
 diag-1stop.log
 diag-2stop.log
+diag-preskip.log
+newscans*.log
+oldcmp.log

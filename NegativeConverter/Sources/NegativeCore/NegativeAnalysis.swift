@@ -315,11 +315,17 @@ public enum NegativeAnalyzer {
         let heapFound = atClearEnd * 100 >= filmMono.total && atClearEnd * 2 >= justBeyond * 5
         let clearFilmFound = !usedFallback && (located.clearBorderFound || heapFound)
 
-        // The picture itself. Clear film that lies inside the measured area (a
-        // sliver of border, the gap to the next frame) is not picture: left
-        // in, it would set the black point, and the real shadows, which lie a
-        // little above clear film, would come out grey. It is skipped unless
-        // that would leave less than half of the area.
+        // The picture itself.
+        //
+        // Colour: clear film that lies inside the measured area (a sliver of
+        // border, unexposed corners) is not picture. Left in, it would set the
+        // black point and the real shadows, which on colour film lie a little
+        // above clear film, would come out grey. It is skipped unless that
+        // would leave less than half of the area.
+        //
+        // Black-and-white: everything counts. The deepest shadows of a
+        // black-and-white negative lie within that distance of clear film;
+        // skipping it crushed them to black (2.1).
         var measured = 0
         var clear = 0
         for y in rect.y0..<rect.y1 {
@@ -339,11 +345,11 @@ public enum NegativeAnalyzer {
             for x in rect.x0..<rect.x1 {
                 let i = y * width + x
                 if excluded[i] != 0 { continue }
+                histMono.add(-logL[i])
                 if skipClearFilm && -logL[i] < monoFilmBase + step { continue }
                 histR.add(dR[i])
                 histG.add(dG[i])
                 histB.add(dB[i])
-                histMono.add(-logL[i])
             }
         }
 
@@ -397,7 +403,25 @@ public enum NegativeAnalyzer {
         }
 
         let colorTone = SIMD3<Float>(histG.percentile(0.20), histG.percentile(0.35), histG.percentile(0.50))
-        let monoTone = SIMD3<Float>(histMono.percentile(0.20), histMono.percentile(0.35), histMono.percentile(0.50))
+        // Black-and-white: how low the picture sits, for the mid-tone lift.
+        // Unexposed film in the picture (a black stage, fisheye corners) is
+        // left out here: it belongs at black and is not a dark scene to be
+        // brightened. It still counts for the black point. Kept in when it
+        // covers half the area or more, as in a night scene.
+        var toneMono = Histogram(lowerBound: -3, upperBound: 9, binWidth: 0.002)
+        if skipClearFilm {
+            for y in rect.y0..<rect.y1 {
+                for x in rect.x0..<rect.x1 {
+                    let i = y * width + x
+                    if excluded[i] != 0 { continue }
+                    let d = -logL[i]
+                    if d >= monoFilmBase + step { toneMono.add(d) }
+                }
+            }
+        }
+        let monoToneSource = toneMono.total > 0 ? toneMono : histMono
+        let monoTone = SIMD3<Float>(monoToneSource.percentile(0.20), monoToneSource.percentile(0.35),
+                                    monoToneSource.percentile(0.50))
         var monoLow = histMono.percentile(shadowPercentile)
         var monoHigh = histMono.percentile(highlightPercentile)
         let monoDense = monoHigh
@@ -418,10 +442,10 @@ public enum NegativeAnalyzer {
                         let i = y * width + x
                         if excluded[i] != 0 { continue }
                         let d = -logL[i]
-                        if skipClearFilm && d < monoFilmBase + step { continue }
                         if d > cap { continue }
-                        capG.add(dG[i])
                         capMono.add(d)
+                        if skipClearFilm && d < monoFilmBase + step { continue }
+                        capG.add(dG[i])
                     }
                 }
                 if capMono.total > 0 {
