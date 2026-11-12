@@ -63,7 +63,7 @@ README explains the conversion step by step; read it before changing the maths.
 - `ToneCurve.baseContrast`, `ToneCurve.liftTargets`, `ToneCurve.strongestLift`:
   contrast and brightness when fitted to the picture.
 - `FilmReference.colorWhiteDensityAboveBase` (1.00, from one real roll) and
-  `whiteDensityAboveBase` (1.20, black-and-white, never checked on real film):
+  `whiteDensityAboveBase` (1.05, black-and-white: textbook Zone VIII 1.2-1.3 corrected for camera-scan flare):
   brightness in film-exposure mode.
 - `NegativeAnalyzer.clearFilmEvenness` and the border test in `pictureRect`:
   whether a frame is judged to show clear film.

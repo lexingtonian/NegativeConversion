@@ -61,10 +61,13 @@ public struct FilmReference: Equatable, Sendable {
     public var layerContrast: SIMD3<Float>
 
     /// Density above clear film (luminance) that is shown as white before
-    /// the highlight roll-off, for black-and-white film. With this value a
-    /// mid-grey subject exposed at box speed, about 0.7 above clear film, is
-    /// shown as mid-grey. Not yet checked against real scans.
-    public static let whiteDensityAboveBase: Float = 1.20
+    /// the highlight roll-off, for black-and-white film. The textbook value
+    /// for textured white (Zone VIII) on a normally developed negative is
+    /// about 1.2-1.3, measured with a densitometer. A camera scan reads dense
+    /// areas thinner than that, because a little scattered light (flare, 1-3 %)
+    /// reaches them; 1.2-1.25 then reads as about 1.0-1.1. Hence 1.05, in line
+    /// with the colour value, which was also set for camera scans.
+    public static let whiteDensityAboveBase: Float = 1.05
     /// The same for colour film (green). The dyes of colour film look thinner
     /// to a camera than to a densitometer: on real scans the middle of a
     /// daylight scene lay about 0.5 above clear film and white clothing in the

@@ -84,8 +84,17 @@ final class AppModel: ObservableObject {
     @Published var items: [NegativeItem] = []
     @Published var selection: NegativeItem.ID?
     @Published var outputFolder: URL?
-    @Published var outputFormat: OutputFormat = .jpeg
-    @Published var jpegQuality: Double = 0.95
+    // Output format and JPEG quality are remembered between sessions, like
+    // the output folder.
+    @Published var outputFormat: OutputFormat = .jpeg {
+        didSet { UserDefaults.standard.set(outputFormat.rawValue, forKey: Self.outputFormatKey) }
+    }
+    @Published var jpegQuality: Double = 0.95 {
+        didSet { UserDefaults.standard.set(jpegQuality, forKey: Self.jpegQualityKey) }
+    }
+    private static let outputFormatKey = "OutputFormat"
+    private static let jpegQualityKey = "JPEGQuality"
+    private static let jpegQualities: [Double] = [0.85, 0.90, 0.95, 1.0]
     @Published var isExporting = false
     @Published var exportDone = 0
     @Published var exportTotal = 0
@@ -102,6 +111,15 @@ final class AppModel: ObservableObject {
 
     init() {
         restoreOutputFolder()
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: Self.outputFormatKey), let format = OutputFormat(rawValue: raw) {
+            outputFormat = format
+        }
+        if defaults.object(forKey: Self.jpegQualityKey) != nil {
+            let saved = defaults.double(forKey: Self.jpegQualityKey)
+            // Only values the quality menu offers.
+            if Self.jpegQualities.contains(saved) { jpegQuality = saved }
+        }
     }
 
     var selectedItem: NegativeItem? {

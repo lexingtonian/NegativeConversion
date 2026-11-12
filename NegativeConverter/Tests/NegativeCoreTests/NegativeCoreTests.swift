@@ -242,11 +242,12 @@ final class NegativeCoreTests: XCTestCase {
         XCTAssertLessThan(warm.z, neutral.z)
     }
 
-    /// A subject exposed correctly (mid-grey about 0.7 density units above
-    /// clear film) in front of a background four to five stops brighter.
+    /// A subject exposed correctly in front of a background four to five stops
+    /// brighter. Mid-grey lies about 0.6 density units above clear film, as a
+    /// camera scan reads a normally exposed mid-grey (about 0.7 by densitometer).
     private func backlitSubject(_ u: Float, _ v: Float) -> SIMD3<Float> {
         let inSubject = u > 0.3 && u < 0.7 && v > 0.25
-        return SIMD3<Float>(repeating: inSubject ? 0.055 * (0.8 + 0.4 * v) : 1.3 + 0.6 * u)
+        return SIMD3<Float>(repeating: inSubject ? 0.035 * (0.8 + 0.4 * v) : 1.3 + 0.6 * u)
     }
 
     func testFilmExposureKeepsACorrectlyExposedSubjectRight() {
