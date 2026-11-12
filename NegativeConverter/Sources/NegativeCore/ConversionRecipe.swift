@@ -121,6 +121,12 @@ enum ToneCurve {
     /// Mid-tone contrast applied with the contrast slider at 0 (1 = none).
     static let baseContrast: Float = 1.3
 
+    /// Black-and-white, fitted to the picture: a gentle gamma applied by
+    /// default (the same as Brightness +0.3). It opens the lower mid-tones
+    /// and leaves black and white where they are, so the file is a good
+    /// starting point for further editing. Colour is not affected.
+    static let blackAndWhiteFitExponent: Float = pow(2, -0.3)
+
     /// Brightness that the darkest 20 %, 35 % and 50 % of the picture should at
     /// least reach. These describe an ordinary, well-balanced photograph.
     static let liftTargets = SIMD3<Float>(0.17, 0.32, 0.47)
@@ -264,10 +270,13 @@ public struct ConversionRecipe: @unchecked Sendable {
             let exposureRange = ToneCurve.exposureRange(forDensityRange: range)
             let size = ConversionRecipe.monoTableSize
             let span = ConversionRecipe.monoSpan
+            let monoExponent = filmReference == nil
+                ? brightnessExponent * ToneCurve.blackAndWhiteFitExponent
+                : brightnessExponent
             monoTable = (0...size).map { i in
                 let n = Float(i) / Float(size) * span - 1
                 return ToneCurve.evaluate(n, exposureRange: exposureRange, lift: lift,
-                                          brightnessExponent: brightnessExponent, contrast: contrast,
+                                          brightnessExponent: monoExponent, contrast: contrast,
                                           highlightRolloff: rolloff)
             }
         } else {
