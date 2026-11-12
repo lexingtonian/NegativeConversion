@@ -150,6 +150,10 @@ public enum NegativeAnalyzer {
     /// luminance) is treated as genuinely low in contrast and is not stretched
     /// to full black-to-white. 0.55 is roughly a three-stop scene.
     static let minimumDensityRange: Float = 0.55
+    /// The same for an area chosen by hand. Drawing the area is taken as the
+    /// intent to use its range, so it is stretched much further; the floor
+    /// only keeps dust and grain from being blown up (about 1.7 stops).
+    static let handAreaMinimumDensityRange: Float = 0.30
 
     /// Limits for the contrast of the red and blue layers relative to green.
     static let layerContrastLimits: ClosedRange<Float> = 0.6...1.6
@@ -508,15 +512,16 @@ public enum NegativeAnalyzer {
         high = low + range
 
         // Low-contrast scenes stay low in contrast instead of being stretched.
-        if range.y < minimumDensityRange {
-            let extra = minimumDensityRange / range.y - 1
+        let minimumRange = pictureArea != nil ? handAreaMinimumDensityRange : minimumDensityRange
+        if range.y < minimumRange {
+            let extra = minimumRange / range.y - 1
             low -= range * (extra * 0.7)
             high += range * (extra * 0.3)
         }
         let monoRange = max(monoHigh - monoLow, minRange)
         monoHigh = monoLow + monoRange
-        if monoRange < minimumDensityRange {
-            let extra = minimumDensityRange - monoRange
+        if monoRange < minimumRange {
+            let extra = minimumRange - monoRange
             monoLow -= extra * 0.7
             monoHigh += extra * 0.3
         }

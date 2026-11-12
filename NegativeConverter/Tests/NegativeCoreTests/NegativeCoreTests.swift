@@ -397,4 +397,18 @@ final class NegativeCoreTests: XCTestCase {
         let a = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height)
         XCTAssertEqual(a.monoHighlightDensity, a.monoDenseDensity, accuracy: 0.02)
     }
+
+    func testHandChosenAreaOnASoftSceneIsStretchedFurther() {
+        // A soft grey scene, well under three stops.
+        let scan = makeScan(color: false) { u, v in SIMD3<Float>(repeating: 0.04 + 0.16 * u) }
+        let automatic = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height)
+        XCTAssertGreaterThanOrEqual(automatic.monoHighlightDensity - automatic.monoShadowDensity,
+                                    NegativeAnalyzer.minimumDensityRange - 0.001)
+        let area = NormalizedRect(x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9)
+        let byHand = NegativeAnalyzer.analyze(half: scan.pixels, width: scan.width, height: scan.height,
+                                              pictureArea: area)
+        let range = byHand.monoHighlightDensity - byHand.monoShadowDensity
+        XCTAssertLessThan(range, NegativeAnalyzer.minimumDensityRange - 0.05)
+        XCTAssertGreaterThanOrEqual(range, NegativeAnalyzer.handAreaMinimumDensityRange - 0.001)
+    }
 }
